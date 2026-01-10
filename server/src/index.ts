@@ -3432,18 +3432,57 @@ app.post("/api/distributor/orders/mark-received-bulk", authenticate, async (req,
   }
 });
 
-async function start() {
+// MongoDB connection handler for serverless environments
+let isConnected = false;
+
+async function connectToMongoDB() {
+  if (isConnected) {
+    return;
+  }
+
   try {
     await mongoose.connect(MONGODB_URI);
+    isConnected = true;
     console.log("Connected to MongoDB");
-
-    app.listen(PORT, () => {
-      console.log(`Server is running on http://localhost:${PORT}`);
+    
+    // Handle connection events
+    mongoose.connection.on('error', (err) => {
+      console.error('MongoDB connection error:', err);
+      isConnected = false;
+    });
+    
+    mongoose.connection.on('disconnected', () => {
+      console.log('MongoDB disconnected');
+      isConnected = false;
     });
   } catch (error) {
     console.error("Failed to connect to MongoDB", error);
-    process.exit(1);
+    isConnected = false;
+    throw error;
   }
 }
 
-start();
+// Connect to MongoDB on module load (for serverless)
+// Only start the HTTP server if not in Vercel environment
+if (!process.env.VERCEL) {
+  // In local development, start the server
+  async function start() {
+    try {
+      await connectToMongoDB();
+      app.listen(PORT, () => {
+        console.log(`Server is running on http://localhost:${PORT}`);
+      });
+    } catch (error) {
+      console.error("Failed to start server", error);
+      process.exit(1);
+    }
+  }
+  start();
+} else {
+  // In Vercel, just connect to MongoDB (don't start HTTP server)
+  // The connection will be established when the function is invoked
+  connectToMongoDB().catch(console.error);
+}
+
+// Export the app for Vercel
+export default app;

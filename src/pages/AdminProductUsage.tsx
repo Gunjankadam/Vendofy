@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
+import { getApiUrl } from "../lib/api";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Package, Plus, Edit, Trash2, Loader2 } from "lucide-react";
 import { Button } from "../components/ui/button";
@@ -64,7 +65,7 @@ export default function AdminProductUsage() {
     if (!user?.token) return;
     try {
       setLoading(true);
-      const res = await fetch("http://localhost:5000/api/admin/products/available", {
+      const res = await fetch(getApiUrl("/api/admin/products/available"), {
         headers: { Authorization: `Bearer ${user.token}` },
       });
       if (res.ok) {
@@ -83,7 +84,7 @@ export default function AdminProductUsage() {
     if (!user?.token) return;
     try {
       setLoadingUsed(true);
-      const res = await fetch("http://localhost:5000/api/admin/products/used", {
+      const res = await fetch(getApiUrl("/api/admin/products/used"), {
         headers: { Authorization: `Bearer ${user.token}` },
       });
       if (res.ok) {
@@ -101,7 +102,7 @@ export default function AdminProductUsage() {
   const loadDistributors = async () => {
     if (!user?.token) return;
     try {
-      const res = await fetch("http://localhost:5000/api/admin/distributors", {
+      const res = await fetch(getApiUrl("/api/admin/distributors"), {
         headers: { Authorization: `Bearer ${user.token}` },
       });
       if (res.ok) {
@@ -132,7 +133,7 @@ export default function AdminProductUsage() {
     }
 
     try {
-      const res = await fetch("http://localhost:5000/api/admin/products/use", {
+      const res = await fetch(getApiUrl("/api/admin/products/use"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -170,7 +171,7 @@ export default function AdminProductUsage() {
     if (!user?.token || !selectedPricingId || editPrice <= 0) return;
 
     try {
-      const res = await fetch(`http://localhost:5000/api/admin/products/pricing/${selectedPricingId}`, {
+      const res = await fetch(getApiUrl(`/api/admin/products/pricing/${selectedPricingId}`), {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -199,7 +200,7 @@ export default function AdminProductUsage() {
     if (!user?.token || !selectedPricingId) return;
 
     try {
-      const res = await fetch(`http://localhost:5000/api/admin/products/pricing/${selectedPricingId}`, {
+      const res = await fetch(getApiUrl(`/api/admin/products/pricing/${selectedPricingId}`), {
         method: "DELETE",
         headers: { Authorization: `Bearer ${user.token}` },
       });

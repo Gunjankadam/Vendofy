@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { getApiUrl } from '@/lib/api';
 import Header from '@/components/Header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -123,7 +124,7 @@ const SystemSettings = () => {
 
     const pollInterval = setInterval(async () => {
       try {
-        const res = await fetch('http://localhost:5000/api/system-settings/pending/my', {
+        const res = await fetch(getApiUrl('/api/system-settings/pending/my'), {
           headers: { Authorization: `Bearer ${user.token}` },
         });
         if (res.ok) {
@@ -176,7 +177,7 @@ const SystemSettings = () => {
 
     const pollInterval = setInterval(async () => {
       try {
-        const res = await fetch('http://localhost:5000/api/system-settings', {
+        const res = await fetch(getApiUrl('/api/system-settings'), {
           headers: { Authorization: `Bearer ${user.token}` },
         });
         if (res.ok) {
@@ -251,7 +252,7 @@ const SystemSettings = () => {
 
     const pollInterval = setInterval(async () => {
       try {
-        const res = await fetch('http://localhost:5000/api/system-settings/pending', {
+        const res = await fetch(getApiUrl('/api/system-settings/pending'), {
           headers: { Authorization: `Bearer ${user.token}` },
         });
         if (res.ok) {
@@ -277,7 +278,7 @@ const SystemSettings = () => {
   const loadSettings = async () => {
     if (!user?.token) return;
     try {
-      const res = await fetch('http://localhost:5000/api/system-settings', {
+      const res = await fetch(getApiUrl('/api/system-settings'), {
         headers: { Authorization: `Bearer ${user.token}` },
         cache: 'no-store', // Prevent caching
       });
@@ -359,7 +360,7 @@ const SystemSettings = () => {
   const loadPendingChange = async () => {
     if (!user?.token || user?.isSuperAdmin) return;
     try {
-      const res = await fetch('http://localhost:5000/api/system-settings/pending/my', {
+      const res = await fetch(getApiUrl('/api/system-settings/pending/my'), {
         headers: { Authorization: `Bearer ${user.token}` },
       });
       if (res.ok) {
@@ -395,7 +396,7 @@ const SystemSettings = () => {
     if (!user?.token || !user?.isSuperAdmin) return;
     setLoadingPending(true);
     try {
-      const res = await fetch('http://localhost:5000/api/system-settings/pending', {
+      const res = await fetch(getApiUrl('/api/system-settings/pending'), {
         headers: { Authorization: `Bearer ${user.token}` },
       });
       if (res.ok) {
@@ -449,7 +450,7 @@ const SystemSettings = () => {
     if (!user?.token) return;
     try {
       // First, save the current settings (which may have been manually adjusted)
-      const saveRes = await fetch('http://localhost:5000/api/system-settings', {
+      const saveRes = await fetch(getApiUrl('/api/system-settings'), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -466,7 +467,7 @@ const SystemSettings = () => {
       }
 
       // Then approve the request (this marks it as approved in the database)
-      const res = await fetch(`http://localhost:5000/api/system-settings/pending/${requestId}/approve`, {
+      const res = await fetch(getApiUrl(`/api/system-settings/pending/${requestId}/approve`), {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${user.token}`,
@@ -501,7 +502,7 @@ const SystemSettings = () => {
   const handleReject = async (requestId: string, reason?: string) => {
     if (!user?.token) return;
     try {
-      const res = await fetch(`http://localhost:5000/api/system-settings/pending/${requestId}/reject`, {
+      const res = await fetch(getApiUrl(`/api/system-settings/pending/${requestId}/reject`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -545,7 +546,7 @@ const SystemSettings = () => {
         jwtDurationInSeconds = jwtDurationValue * 3600;
       }
       
-      const res = await fetch('http://localhost:5000/api/system-settings', {
+      const res = await fetch(getApiUrl('/api/system-settings'), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -587,7 +588,7 @@ const SystemSettings = () => {
         customer: settings.fieldRequirements?.customer || {},
       };
 
-      const res = await fetch('http://localhost:5000/api/system-settings/pending', {
+      const res = await fetch(getApiUrl('/api/system-settings/pending'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

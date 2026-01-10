@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { getApiUrl } from '@/lib/api';
 import Header from '@/components/Header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -105,7 +106,7 @@ const ProductManagement = () => {
 
     const pollInterval = setInterval(async () => {
       try {
-        const res = await fetch('http://localhost:5000/api/products', {
+        const res = await fetch(getApiUrl('/api/products'), {
           headers: {
             Authorization: `Bearer ${user.token}`,
           },
@@ -166,7 +167,7 @@ const ProductManagement = () => {
 
     const pollInterval = setInterval(async () => {
       try {
-        const res = await fetch('http://localhost:5000/api/products/pending', {
+        const res = await fetch(getApiUrl('/api/products/pending'), {
           headers: {
             Authorization: `Bearer ${user.token}`,
           },
@@ -211,8 +212,8 @@ const ProductManagement = () => {
     try {
       setLoading(true);
       const url = isSuperAdmin && filter !== 'all'
-        ? `http://localhost:5000/api/products?status=${filter}`
-        : 'http://localhost:5000/api/products';
+        ? getApiUrl(`/api/products?status=${filter}`)
+        : getApiUrl('/api/products');
       const res = await fetch(url, {
         headers: {
           Authorization: `Bearer ${user.token}`,
@@ -257,7 +258,7 @@ const ProductManagement = () => {
   const loadPendingProducts = async () => {
     if (!user?.token || !isSuperAdmin) return;
     try {
-      const res = await fetch('http://localhost:5000/api/products/pending', {
+      const res = await fetch(getApiUrl('/api/products/pending'), {
         headers: {
           Authorization: `Bearer ${user.token}`,
         },
@@ -320,7 +321,7 @@ const ProductManagement = () => {
     if (!user?.token || !deleteProductId) return;
 
     try {
-      const res = await fetch(`http://localhost:5000/api/products/${deleteProductId}`, {
+      const res = await fetch(getApiUrl(`/api/products/${deleteProductId}`), {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${user.token}`,
@@ -350,8 +351,8 @@ const ProductManagement = () => {
 
     try {
       const url = isEdit
-        ? `http://localhost:5000/api/products/${selectedProduct?._id}`
-        : 'http://localhost:5000/api/products';
+        ? getApiUrl(`/api/products/${selectedProduct?._id}`)
+        : getApiUrl('/api/products');
       const method = isEdit ? 'PUT' : 'POST';
 
       const res = await fetch(url, {
@@ -406,7 +407,7 @@ const ProductManagement = () => {
     if (!user?.token || !selectedProduct) return;
 
     try {
-      const res = await fetch(`http://localhost:5000/api/products/${selectedProduct._id}/approve`, {
+      const res = await fetch(getApiUrl(`/api/products/${selectedProduct._id}/approve`), {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${user.token}`,
@@ -439,7 +440,7 @@ const ProductManagement = () => {
     if (!user?.token || !selectedProduct) return;
 
     try {
-      const res = await fetch(`http://localhost:5000/api/products/${selectedProduct._id}/reject`, {
+      const res = await fetch(getApiUrl(`/api/products/${selectedProduct._id}/reject`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

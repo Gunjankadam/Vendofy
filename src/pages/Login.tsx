@@ -205,14 +205,14 @@ const Login = () => {
             <div className="space-y-2">
               <Label htmlFor="password" className="text-sm">Password</Label>
               <div className="relative">
-                <Input
-                  id="password"
+              <Input
+                id="password"
                   type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter password"
                   className="h-12 pr-10"
-                />
+              />
                 <button
                   type="button"
                   onClick={() => setShowPassword((prev) => !prev)}

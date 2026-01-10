@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth, UserRole } from '@/contexts/AuthContext';
+import { getApiUrl } from '@/lib/api';
 import Header from '@/components/Header';
 import PasswordChangeNotification from '@/components/PasswordChangeNotification';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -101,7 +102,7 @@ const AdminDashboard = () => {
     const loadUserStats = async () => {
       if (!user?.token) return;
       try {
-        const res = await fetch('http://localhost:5000/api/admin/users/stats', {
+        const res = await fetch(getApiUrl('/api/admin/users/stats'), {
           headers: {
             Authorization: `Bearer ${user.token}`,
           },
@@ -160,7 +161,7 @@ const AdminDashboard = () => {
       }
       
       // Load revenue stats
-      const revenueRes = await fetch(`http://localhost:5000/api/admin/stats/revenue-orders?${revenueParams.toString()}`, {
+      const revenueRes = await fetch(getApiUrl(`/api/admin/stats/revenue-orders?${revenueParams.toString()}`), {
         headers: {
           Authorization: `Bearer ${user.token}`,
         },
@@ -190,7 +191,7 @@ const AdminDashboard = () => {
       }
       
       // Load orders stats
-      const ordersRes = await fetch(`http://localhost:5000/api/admin/stats/revenue-orders?${ordersParams.toString()}`, {
+      const ordersRes = await fetch(getApiUrl(`/api/admin/stats/revenue-orders?${ordersParams.toString()}`), {
         headers: {
           Authorization: `Bearer ${user.token}`,
         },
@@ -705,7 +706,7 @@ const AdminDashboard = () => {
           description="Use products and set pricing for distributors" 
           icon={<Package size={24} />}
           onClick={() => navigate('/admin/product-usage')}
-        />
+      />
       )}
     </div>
     
@@ -795,7 +796,7 @@ const DistributorDashboard = () => {
       }
       
       // Load revenue stats
-      const revenueRes = await fetch(`http://localhost:5000/api/admin/stats/revenue-orders?${revenueParams.toString()}`, {
+      const revenueRes = await fetch(getApiUrl(`/api/admin/stats/revenue-orders?${revenueParams.toString()}`), {
         headers: {
           Authorization: `Bearer ${user.token}`,
         },
@@ -825,7 +826,7 @@ const DistributorDashboard = () => {
       }
       
       // Load orders stats
-      const ordersRes = await fetch(`http://localhost:5000/api/admin/stats/revenue-orders?${ordersParams.toString()}`, {
+      const ordersRes = await fetch(getApiUrl(`/api/admin/stats/revenue-orders?${ordersParams.toString()}`), {
         headers: {
           Authorization: `Bearer ${user.token}`,
         },
@@ -884,7 +885,7 @@ const DistributorDashboard = () => {
       return;
     }
     try {
-      const res = await fetch('http://localhost:5000/api/distributor/orders/in-transit-count', {
+      const res = await fetch(getApiUrl('/api/distributor/orders/in-transit-count'), {
         headers: {
           Authorization: `Bearer ${user.token}`,
         },
@@ -1294,7 +1295,7 @@ const CustomerDashboard = () => {
     if (!user?.token) return;
     try {
       setLoadingOrders(true);
-      const res = await fetch('http://localhost:5000/api/customer/orders', {
+      const res = await fetch(getApiUrl('/api/customer/orders'), {
         headers: {
           Authorization: `Bearer ${user.token}`,
         },
@@ -1367,7 +1368,7 @@ const CustomerDashboard = () => {
         description="View past purchases" 
         icon={<FileText size={20} />}
             onClick={() => navigate('/customer/orders')}
-          />
+      />
         </div>
       </div>
     </div>

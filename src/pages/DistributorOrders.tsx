@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { getApiUrl } from '@/lib/api';
 import Header from '@/components/Header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -57,7 +58,7 @@ const DistributorOrders = () => {
   const loadOrders = async () => {
     if (!user?.token) return;
     try {
-      const res = await fetch('http://localhost:5000/api/distributor/orders', {
+      const res = await fetch(getApiUrl('/api/distributor/orders'), {
         headers: {
           Authorization: `Bearer ${user.token}`,
         },
@@ -89,7 +90,7 @@ const DistributorOrders = () => {
   const handleAddToTransit = async (orderIds: string[]) => {
     if (!user?.token) return;
     try {
-      const res = await fetch('http://localhost:5000/api/distributor/orders/mark-for-today', {
+      const res = await fetch(getApiUrl('/api/distributor/orders/mark-for-today'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -125,7 +126,7 @@ const DistributorOrders = () => {
     if (!user?.token || selectedOrders.size === 0) return;
     try {
       setSendingToAdmin(true);
-      const res = await fetch('http://localhost:5000/api/distributor/orders/send-to-admin', {
+      const res = await fetch(getApiUrl('/api/distributor/orders/send-to-admin'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -172,7 +173,7 @@ const DistributorOrders = () => {
   const handleUpdateDeliveryDate = async () => {
     if (!user?.token || !selectedOrderForDate || !customDate) return;
     try {
-      const res = await fetch(`http://localhost:5000/api/distributor/orders/${selectedOrderForDate}/update-delivery-date`, {
+      const res = await fetch(getApiUrl(`/api/distributor/orders/${selectedOrderForDate}/update-delivery-date`), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

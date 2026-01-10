@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { getApiUrl } from '@/lib/api';
 import Header from '@/components/Header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -48,7 +49,7 @@ const DistributorTransit = () => {
   const loadTransitOrders = async () => {
     if (!user?.token) return;
     try {
-      const res = await fetch('http://localhost:5000/api/distributor/orders', {
+      const res = await fetch(getApiUrl('/api/distributor/orders'), {
         headers: {
           Authorization: `Bearer ${user.token}`,
         },
@@ -87,7 +88,7 @@ const DistributorTransit = () => {
     setMarkingReceived(true);
     try {
       if (orderIds.length === 1) {
-        const res = await fetch(`http://localhost:5000/api/distributor/orders/${orderIds[0]}/mark-received`, {
+        const res = await fetch(getApiUrl(`/api/distributor/orders/${orderIds[0]}/mark-received`), {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${user.token}`,
@@ -95,7 +96,7 @@ const DistributorTransit = () => {
         });
         if (!res.ok) throw new Error('Failed to mark order as received');
       } else {
-        const res = await fetch('http://localhost:5000/api/distributor/orders/mark-received-bulk', {
+        const res = await fetch(getApiUrl('/api/distributor/orders/mark-received-bulk'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

@@ -185,7 +185,7 @@ const Header = () => {
                     {user.uid && (
                       <span className="text-xs text-muted-foreground font-mono mt-0.5">
                         UID: {user.uid}
-                      </span>
+              </span>
                     )}
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
@@ -235,7 +235,7 @@ const Header = () => {
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     className="flex items-center gap-2 text-sm text-destructive focus:text-destructive"
-                    onClick={logout}
+                onClick={logout}
                   >
                     <LogOut className="h-4 w-4" />
                     <span>Logout</span>

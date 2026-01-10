@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { getApiUrl } from '@/lib/api';
 import Header from '@/components/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -132,7 +133,7 @@ const UserManagement = () => {
       if (roleFilter !== 'all') params.append('role', roleFilter);
       if (statusFilter !== 'all') params.append('status', statusFilter);
 
-      const res = await fetch(`http://localhost:5000/api/admin/users?${params.toString()}`, {
+      const res = await fetch(getApiUrl(`/api/admin/users?${params.toString()}`), {
         headers: {
           Authorization: `Bearer ${user?.token}`,
         },
@@ -159,7 +160,7 @@ const UserManagement = () => {
       if (formData.businessName) params.append('businessName', formData.businessName);
       if (formData.name) params.append('name', formData.name);
 
-      const res = await fetch(`http://localhost:5000/api/admin/users/suggest-uid?${params.toString()}`, {
+      const res = await fetch(getApiUrl(`/api/admin/users/suggest-uid?${params.toString()}`), {
         headers: {
           Authorization: `Bearer ${user?.token}`,
         },
@@ -182,7 +183,7 @@ const UserManagement = () => {
     if (!uid.trim()) return;
     setCheckingUID(true);
     try {
-      const res = await fetch(`http://localhost:5000/api/admin/users/check-uid/${uid}`, {
+      const res = await fetch(getApiUrl(`/api/admin/users/check-uid/${uid}`), {
         headers: {
           Authorization: `Bearer ${user?.token}`,
         },
@@ -209,7 +210,7 @@ const UserManagement = () => {
       const reader = new FileReader();
       reader.onloadend = async () => {
         const base64Data = reader.result as string;
-        const res = await fetch('http://localhost:5000/api/user/profile-photo', {
+        const res = await fetch(getApiUrl('/api/user/profile-photo'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -241,7 +242,7 @@ const UserManagement = () => {
 
   const handleRoleChange = async (userId: string, newRole: 'admin' | 'distributor' | 'customer') => {
     try {
-      const res = await fetch(`http://localhost:5000/api/admin/users/${userId}/role`, {
+      const res = await fetch(getApiUrl(`/api/admin/users/${userId}/role`), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -270,7 +271,7 @@ const UserManagement = () => {
 
   const handleStatusToggle = async (userId: string, isActive: boolean) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/admin/users/${userId}/status`, {
+      const res = await fetch(getApiUrl(`/api/admin/users/${userId}/status`), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -301,7 +302,7 @@ const UserManagement = () => {
 
   const handleForceReset = async (userId: string) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/admin/users/${userId}/force-reset`, {
+      const res = await fetch(getApiUrl(`/api/admin/users/${userId}/force-reset`), {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${user?.token}`,
@@ -365,7 +366,7 @@ const UserManagement = () => {
         return;
       }
 
-      const res = await fetch('http://localhost:5000/api/admin/users', {
+      const res = await fetch(getApiUrl('/api/admin/users'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -431,7 +432,7 @@ const UserManagement = () => {
         updateData.password = formData.password;
       }
 
-      const res = await fetch(`http://localhost:5000/api/admin/users/${selectedUser._id}`, {
+      const res = await fetch(getApiUrl(`/api/admin/users/${selectedUser._id}`), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -469,7 +470,7 @@ const UserManagement = () => {
     if (!selectedUser) return;
 
     try {
-      const res = await fetch(`http://localhost:5000/api/admin/users/${selectedUser._id}`, {
+      const res = await fetch(getApiUrl(`/api/admin/users/${selectedUser._id}`), {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${user?.token}`,

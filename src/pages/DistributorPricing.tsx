@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { getApiUrl } from '@/lib/api';
 import Header from '@/components/Header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -75,7 +76,7 @@ const DistributorPricing = () => {
       setLoading(true);
       
       // Load pricing
-      const pricingRes = await fetch('http://localhost:5000/api/distributor/customer-pricing', {
+      const pricingRes = await fetch(getApiUrl('/api/distributor/customer-pricing'), {
         headers: {
           Authorization: `Bearer ${user.token}`,
         },
@@ -85,7 +86,7 @@ const DistributorPricing = () => {
       setPricing(pricingData);
 
       // Load customers (distributor's customers)
-      const customersRes = await fetch('http://localhost:5000/api/distributor/customers', {
+      const customersRes = await fetch(getApiUrl('/api/distributor/customers'), {
         headers: {
           Authorization: `Bearer ${user.token}`,
         },
@@ -96,7 +97,7 @@ const DistributorPricing = () => {
       }
 
       // Load products (products that admin has used for this distributor)
-      const productsRes = await fetch('http://localhost:5000/api/distributor/products', {
+      const productsRes = await fetch(getApiUrl('/api/distributor/products'), {
         headers: {
           Authorization: `Bearer ${user.token}`,
         },
@@ -142,7 +143,7 @@ const DistributorPricing = () => {
     if (!user?.token) return;
 
     try {
-      const res = await fetch('http://localhost:5000/api/distributor/customer-pricing', {
+      const res = await fetch(getApiUrl('/api/distributor/customer-pricing'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -184,7 +185,7 @@ const DistributorPricing = () => {
     if (!user?.token || !selectedPricing) return;
 
     try {
-      const res = await fetch(`http://localhost:5000/api/distributor/customer-pricing/${selectedPricing._id}`, {
+      const res = await fetch(getApiUrl(`/api/distributor/customer-pricing/${selectedPricing._id}`), {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${user.token}`,

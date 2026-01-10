@@ -86,7 +86,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       mustChangePassword: data.mustChangePassword || false,
       uid: data.uid,
     };
-
+    
     setUser(loggedInUser);
     localStorage.setItem('user', JSON.stringify(loggedInUser));
     scheduleLogout(data.expiresAt);

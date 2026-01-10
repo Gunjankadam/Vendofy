@@ -1,0 +1,300 @@
+import { useEffect, useState, useRef } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import Header from '@/components/Header';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ArrowLeft, Loader2, Truck, CheckCircle2 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { useNavigate } from 'react-router-dom';
+
+interface Order {
+  _id: string;
+  orderNumber: string;
+  customerId: { name: string; email: string };
+  items: Array<{
+    productId: { name: string; imageUrl?: string };
+    quantity: number;
+    price: number;
+  }>;
+  totalAmount: number;
+  desiredDeliveryDate: string;
+  currentDeliveryDate: string;
+  markedForToday: boolean;
+  sentToAdmin: boolean;
+  status: string;
+  receivedAt?: string;
+}
+
+const DistributorTransit = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const [transitOrders, setTransitOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
+  const [markingReceived, setMarkingReceived] = useState(false);
+  const prevOrdersRef = useRef<Order[]>([]);
+
+  useEffect(() => {
+    if (!user?.token) return;
+    loadTransitOrders();
+    // Poll for updates every 5 seconds
+    const interval = setInterval(loadTransitOrders, 5000);
+    return () => clearInterval(interval);
+  }, [user?.token]);
+
+  const loadTransitOrders = async () => {
+    if (!user?.token) return;
+    try {
+      const res = await fetch('http://localhost:5000/api/distributor/orders', {
+        headers: {
+          Authorization: `Bearer ${user.token}`,
+        },
+      });
+      if (!res.ok) throw new Error('Failed to load transit orders');
+      const data = await res.json();
+      
+      // Show all orders that are marked for today (including received ones)
+      const transit = (data.allOrders || []).filter((order: Order) => 
+        order.markedForToday
+      );
+      
+      // Only update if orders actually changed
+      const ordersChanged = JSON.stringify(prevOrdersRef.current) !== JSON.stringify(transit);
+      if (ordersChanged) {
+        setTransitOrders(transit);
+        prevOrdersRef.current = transit;
+      }
+    } catch (error: any) {
+      console.error('Load transit orders error:', error);
+      if (loading) {
+        toast({
+          title: 'Failed to load transit orders',
+          description: error.message || 'Please try again.',
+          variant: 'destructive',
+        });
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMarkReceived = async (orderIds: string[]) => {
+    if (!user?.token) return;
+    
+    setMarkingReceived(true);
+    try {
+      if (orderIds.length === 1) {
+        const res = await fetch(`http://localhost:5000/api/distributor/orders/${orderIds[0]}/mark-received`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${user.token}`,
+          },
+        });
+        if (!res.ok) throw new Error('Failed to mark order as received');
+      } else {
+        const res = await fetch('http://localhost:5000/api/distributor/orders/mark-received-bulk', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${user.token}`,
+          },
+          body: JSON.stringify({ orderIds }),
+        });
+        if (!res.ok) throw new Error('Failed to mark orders as received');
+      }
+      
+      toast({
+        title: 'Success',
+        description: `${orderIds.length} order(s) marked as received.`,
+        variant: 'success',
+      });
+      
+      setSelectedOrders(new Set());
+      await loadTransitOrders();
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to mark orders as received.',
+        variant: 'destructive',
+      });
+    } finally {
+      setMarkingReceived(false);
+    }
+  };
+
+  const handleSelectAll = () => {
+    // Only select orders that haven't been received yet
+    const unreceivedOrders = transitOrders.filter(o => !o.receivedAt);
+    const unreceivedOrderIds = unreceivedOrders.map(o => o._id);
+    
+    if (unreceivedOrderIds.every(id => selectedOrders.has(id)) && unreceivedOrderIds.length > 0) {
+      setSelectedOrders(new Set());
+    } else {
+      setSelectedOrders(new Set(unreceivedOrderIds));
+    }
+  };
+
+  const toggleOrderSelection = (orderId: string) => {
+    setSelectedOrders(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(orderId)) {
+        newSet.delete(orderId);
+      } else {
+        newSet.add(orderId);
+      }
+      return newSet;
+    });
+  };
+
+  const selectedTransitOrders = transitOrders.filter(order => 
+    selectedOrders.has(order._id) && !order.receivedAt
+  );
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <main className="container mx-auto px-6 pt-28 pb-12">
+          <div className="flex items-center justify-center min-h-[60vh]">
+            <div className="flex flex-col items-center gap-4">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="text-sm text-muted-foreground">Loading transit orders...</p>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      <Header />
+      <main className="container mx-auto px-6 pt-28 pb-12">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => navigate('/dashboard')}
+          className="mb-6 rounded-full"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+
+        <div className="mb-6">
+          <h1 className="font-serif text-3xl font-medium mb-2 flex items-center gap-2">
+            <Truck className="h-8 w-8" />
+            Transit Box
+          </h1>
+          <p className="text-muted-foreground">Orders in transit - mark as received when items arrive</p>
+        </div>
+
+        {transitOrders.length === 0 ? (
+          <Card>
+            <CardContent className="py-12 text-center">
+              <Truck className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+              <p className="text-muted-foreground">No orders in transit.</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <>
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={transitOrders.length > 0 && transitOrders.every(order => selectedOrders.has(order._id))}
+                  onCheckedChange={handleSelectAll}
+                />
+                <span className="text-sm text-muted-foreground">
+                  {selectedTransitOrders.length > 0 ? `${selectedTransitOrders.length} selected` : 'Select all'}
+                </span>
+              </div>
+              {selectedTransitOrders.length > 0 && (
+                <Button
+                  onClick={() => handleMarkReceived(Array.from(selectedTransitOrders.map(o => o._id)))}
+                  disabled={markingReceived}
+                  size="sm"
+                >
+                  {markingReceived ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Marking...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="mr-2 h-4 w-4" />
+                      Mark as Received ({selectedTransitOrders.length})
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
+
+            <div className="space-y-4">
+              {transitOrders.map((order) => {
+                const isSelected = selectedOrders.has(order._id);
+                return (
+                  <Card key={order._id} className={`hover:shadow-md transition-shadow ${isSelected ? 'border-primary' : ''}`}>
+                    <CardContent className="pt-6">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start gap-4 flex-1">
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => toggleOrderSelection(order._id)}
+                            disabled={order.receivedAt}
+                          />
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <h3 className="font-medium">Order #{order.orderNumber}</h3>
+                              {order.receivedAt ? (
+                                <Badge variant="default" className="bg-green-600">Stocked</Badge>
+                              ) : (
+                                <Badge variant="default">In Transit</Badge>
+                              )}
+                              {order.sentToAdmin && (
+                                <Badge variant="secondary">Sent to Admin</Badge>
+                              )}
+                            </div>
+                            <p className="text-sm text-muted-foreground mb-2">
+                              Customer: {order.customerId.name} ({order.customerId.email})
+                            </p>
+                            <div className="space-y-1 mb-2">
+                              {order.items.map((item, idx) => (
+                                <div key={idx} className="text-sm">
+                                  {item.productId.name} × {item.quantity} = ₹{(item.price * item.quantity).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                                </div>
+                              ))}
+                            </div>
+                            <p className="font-medium">
+                              Total: ₹{order.totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                            </p>
+                          </div>
+                        </div>
+                        {!order.receivedAt && (
+                          <div className="flex flex-col gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleMarkReceived([order._id])}
+                              disabled={markingReceived}
+                            >
+                              <CheckCircle2 className="mr-2 h-4 w-4" />
+                              Mark Received
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </main>
+    </div>
+  );
+};
+
+export default DistributorTransit;
+

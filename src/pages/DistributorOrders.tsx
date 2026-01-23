@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getApiUrl } from '@/lib/api';
 import Header from '@/components/Header';
+import abstractImage from '@/assets/abstract-login.jpg';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -58,14 +59,10 @@ const DistributorOrders = () => {
   const loadOrders = async () => {
     if (!user?.token) return;
     try {
-      const res = await fetch(getApiUrl('/api/distributor/orders'), {
-        headers: {
-          Authorization: `Bearer ${user.token}`,
-        },
-      });
-      if (!res.ok) throw new Error('Failed to load orders');
-      const data = await res.json();
-      
+      const { cachedFetch } = await import('@/lib/cached-fetch');
+      // Skip cache for polling requests to get fresh data
+      const data = await cachedFetch<any>('/api/distributor/orders', user.token, { skipCache: true });
+
       // Only update if orders actually changed
       const ordersChanged = JSON.stringify(prevOrdersRef.current) !== JSON.stringify(data.allOrders);
       if (ordersChanged) {
@@ -225,9 +222,19 @@ const DistributorOrders = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background relative">
+        <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+          <img
+            src={abstractImage}
+            alt=""
+            className="absolute inset-0 w-full h-full opacity-[0.30] object-cover"
+            loading="lazy"
+            fetchPriority="low"
+          />
+          <div className="absolute inset-0 bg-white/95 dark:bg-black/95 backdrop-blur-3xl" />
+        </div>
         <Header />
-        <main className="container mx-auto px-6 pt-28 pb-12">
+        <main className="container mx-auto px-6 pt-28 pb-12 relative z-10">
           <div className="flex items-center justify-center min-h-[60vh]">
             <div className="flex flex-col items-center gap-4">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -240,9 +247,19 @@ const DistributorOrders = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background relative">
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+        <img
+          src={abstractImage}
+          alt=""
+          className="absolute inset-0 w-full h-full opacity-[0.30] object-cover"
+          loading="lazy"
+          fetchPriority="low"
+        />
+        <div className="absolute inset-0 bg-white/95 dark:bg-black/95 backdrop-blur-3xl" />
+      </div>
       <Header />
-      <main className="container mx-auto px-6 pt-28 pb-12">
+      <main className="container mx-auto px-4 md:px-6 pt-24 md:pt-28 pb-12 relative z-10">
         <Button
           variant="ghost"
           size="icon"
@@ -252,22 +269,22 @@ const DistributorOrders = () => {
           <ArrowLeft className="h-4 w-4" />
         </Button>
 
-        <div className="mb-6">
-          <h1 className="font-serif text-3xl font-medium mb-2">Order Management</h1>
-          <p className="text-muted-foreground">Manage and fulfill customer orders</p>
+        <div className="mb-4 md:mb-6">
+          <h1 className="font-sans text-2xl md:text-4xl font-bold mb-1 md:mb-2 tracking-tight">Order Management</h1>
+          <p className="text-slate-600 dark:text-slate-400 font-medium text-sm md:text-base">Manage and fulfill customer orders</p>
         </div>
 
         {/* Today's Orders Section */}
         {todayOrders.length > 0 && (
-          <Card className="mb-6 border-primary/20 bg-primary/5">
+          <Card className="mb-6 border-white/40 dark:border-white/20 bg-white/95 dark:bg-black/95 backdrop-blur-xl shadow-xl">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="flex items-center gap-2">
+                  <CardTitle className="flex items-center gap-2 font-bold">
                     <Calendar className="h-5 w-5" />
                     Today's Orders ({todayOrders.length})
                   </CardTitle>
-                  <CardDescription>Orders scheduled for delivery today</CardDescription>
+                  <CardDescription className="text-slate-600 dark:text-slate-400 font-medium">Orders scheduled for delivery today</CardDescription>
                 </div>
                 {selectedOrders.size > 0 && (
                   <div className="flex items-center gap-2">
@@ -294,18 +311,19 @@ const DistributorOrders = () => {
                 {todayOrders.map((order) => (
                   <div
                     key={order._id}
-                    className="p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                    className="p-4 border border-black/10 dark:border-white/10 rounded-lg hover:bg-muted/50 transition-colors"
                   >
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start gap-4 flex-1">
+                    <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                      <div className="flex items-start gap-3 md:gap-4 flex-1">
                         <Checkbox
                           checked={selectedOrders.has(order._id)}
                           onCheckedChange={() => toggleOrderSelection(order._id)}
                           disabled={order.sentToAdmin}
+                          className="mt-1"
                         />
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <h3 className="font-medium">Order #{order.orderNumber}</h3>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-wrap items-center gap-2 mb-2">
+                            <h3 className="font-bold text-sm md:text-base break-all">Order #{order.orderNumber}</h3>
                             <Badge variant={order.markedForToday ? "default" : "outline"}>
                               {order.markedForToday ? "In Transit" : "Pending"}
                             </Badge>
@@ -328,7 +346,7 @@ const DistributorOrders = () => {
                           </p>
                         </div>
                       </div>
-                      <div className="flex flex-col gap-2">
+                      <div className="flex flex-row md:flex-col gap-2 w-full md:w-auto justify-end md:justify-start flex-wrap">
                         {!order.markedForToday && (
                           <Button
                             variant="outline"
@@ -376,32 +394,33 @@ const DistributorOrders = () => {
             const isPast = dateObj < new Date(new Date().setHours(0, 0, 0, 0));
 
             return (
-              <Card key={date} className={isPast ? "opacity-60" : ""}>
+              <Card key={date} className={`${isPast ? "opacity-60" : ""} bg-white/95 dark:bg-black/95 backdrop-blur-xl border-white/20 shadow-xl`}>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
+                  <CardTitle className="flex items-center gap-2 font-bold text-lg">
                     <Calendar className="h-5 w-5" />
                     {dateObj.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-                    {isPast && <Badge variant="destructive">Past Due</Badge>}
+                    {isPast && <Badge variant="destructive" className="ml-2">Past Due</Badge>}
                   </CardTitle>
-                  <CardDescription>{orders.length} order(s)</CardDescription>
+                  <CardDescription className="text-gray-600 dark:text-gray-400">{orders.length} order(s)</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
                     {orders.map((order) => (
                       <div
                         key={order._id}
-                        className="p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                        className="p-4 border border-black/10 dark:border-white/10 rounded-lg hover:bg-muted/50 transition-colors"
                       >
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-start gap-4 flex-1">
+                        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                          <div className="flex items-start gap-3 md:gap-4 flex-1">
                             <Checkbox
                               checked={selectedOrders.has(order._id)}
                               onCheckedChange={() => toggleOrderSelection(order._id)}
                               disabled={order.sentToAdmin}
+                              className="mt-1"
                             />
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-2">
-                                <h3 className="font-medium">Order #{order.orderNumber}</h3>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex flex-wrap items-center gap-2 mb-2">
+                                <h3 className="font-bold text-sm md:text-base break-all">Order #{order.orderNumber}</h3>
                                 {order.markedForToday && (
                                   <Badge variant="default">In Transit</Badge>
                                 )}
@@ -424,7 +443,7 @@ const DistributorOrders = () => {
                               </p>
                             </div>
                           </div>
-                          <div className="flex flex-col gap-2">
+                          <div className="flex flex-row md:flex-col gap-2 w-full md:w-auto justify-end md:justify-start flex-wrap">
                             {!order.markedForToday && (
                               <Button
                                 variant="outline"

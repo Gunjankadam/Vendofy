@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getApiUrl } from '@/lib/api';
 import Header from '@/components/Header';
+import abstractImage from '@/assets/abstract-login.jpg';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -66,7 +67,7 @@ const ProductManagement = () => {
   const [deleteProductId, setDeleteProductId] = useState<string | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [filter, setFilter] = useState<'all' | 'approved' | 'pending' | 'rejected'>('all');
-  
+
   // Refs to track previous state for polling
   const prevProductsRef = useRef<Product[]>([]);
   const prevPendingProductsRef = useRef<Product[]>([]);
@@ -115,18 +116,18 @@ const ProductManagement = () => {
           const data = await res.json();
           const newProducts = data || [];
           const prevProducts = prevProductsRef.current;
-          
+
           // Check if any product status changed
           const hasChanges = newProducts.length !== prevProducts.length ||
             newProducts.some((newProduct: Product) => {
               const prevProduct = prevProducts.find((p) => p._id === newProduct._id);
               return !prevProduct || prevProduct.status !== newProduct.status;
             });
-          
+
           if (hasChanges) {
             setProducts(newProducts);
             prevProductsRef.current = newProducts;
-            
+
             // Show notification if a product was approved
             const approvedProducts = newProducts.filter((newProduct: Product) => {
               const prevProduct = prevProducts.find((p) => p._id === newProduct._id);
@@ -178,13 +179,13 @@ const ProductManagement = () => {
           const prevPendingProducts = prevPendingProductsRef.current;
           const prevPendingIds = new Set(prevPendingProducts.map((p) => p._id));
           const newPendingIds = new Set(newPendingProducts.map((p: Product) => p._id));
-          
+
           // Check if there are new pending products
           if (newPendingProducts.length !== prevPendingProducts.length ||
-              Array.from(newPendingIds).some((id) => !prevPendingIds.has(id))) {
+            Array.from(newPendingIds).some((id) => !prevPendingIds.has(id as string))) {
             setPendingProducts(newPendingProducts);
             prevPendingProductsRef.current = newPendingProducts;
-            
+
             // Show notification if new products were submitted
             const newProducts = newPendingProducts.filter((p: Product) => !prevPendingIds.has(p._id));
             if (newProducts.length > 0) {
@@ -211,45 +212,31 @@ const ProductManagement = () => {
     }
     try {
       setLoading(true);
-      const url = isSuperAdmin && filter !== 'all'
-        ? getApiUrl(`/api/products?status=${filter}`)
-        : getApiUrl('/api/products');
-      const res = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${user.token}`,
-        },
-      });
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({ message: 'Failed to load products' }));
-        if (res.status === 401 || res.status === 403) {
-          toast({
-            title: 'Authentication Error',
-            description: errorData.message || 'You are not authorized to view products. Please log in again.',
-            variant: 'destructive',
-          });
-        } else {
-          toast({
-            title: 'Error',
-            description: errorData.message || 'Failed to load products',
-            variant: 'destructive',
-          });
-        }
-        setProducts([]);
-        prevProductsRef.current = [];
-        return;
-      }
-      const data = await res.json();
-      const productsData = data || [];
+      const endpoint = isSuperAdmin && filter !== 'all'
+        ? `/api/products?status=${filter}`
+        : '/api/products';
+
+      const { cachedFetch } = await import('@/lib/cached-fetch');
+      const productsData = await cachedFetch<any[]>(endpoint, user.token) || [];
       setProducts(productsData);
       prevProductsRef.current = productsData;
     } catch (error: any) {
       console.error('Load products error:', error);
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to load products. Please check your connection.',
-        variant: 'destructive',
-      });
+      if (error.message?.includes('401') || error.message?.includes('403')) {
+        toast({
+          title: 'Authentication Error',
+          description: 'You are not authorized to view products. Please log in again.',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Error',
+          description: error.message || 'Failed to load products. Please check your connection.',
+          variant: 'destructive',
+        });
+      }
       setProducts([]);
+      prevProductsRef.current = [];
     } finally {
       setLoading(false);
     }
@@ -492,10 +479,23 @@ const ProductManagement = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background relative">
+      {/* Abstract background image with dark overlay */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+        <img
+          src={abstractImage}
+          alt=""
+          className="absolute inset-0 w-full h-full opacity-[0.30] object-cover"
+          loading="lazy"
+          fetchPriority="low"
+        />
+        {/* Dark overlay for better contrast */}
+        <div className="absolute inset-0 bg-background/30" />
+      </div>
+
       <Header />
 
-      <main className="container mx-auto px-6 pt-28 pb-12">
+      <main className="container mx-auto px-6 pt-28 pb-12 relative z-10">
         <div className="space-y-8">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -508,8 +508,8 @@ const ProductManagement = () => {
                 <ArrowLeft className="h-4 w-4" />
               </Button>
               <div>
-                <h2 className="font-serif text-2xl font-medium mb-1">Product Management</h2>
-                <p className="text-muted-foreground">
+                <h2 className="font-sans text-3xl font-bold mb-1 text-foreground">Product Management</h2>
+                <p className="text-base font-medium text-gray-600 dark:text-gray-400">
                   {isSuperAdmin ? 'Manage and review products' : 'Manage your products'}
                 </p>
               </div>
@@ -534,10 +534,10 @@ const ProductManagement = () => {
               <CardContent>
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {pendingProducts.map((product) => (
-                    <Card key={product._id}>
+                    <Card key={product._id} className="bg-white/95 dark:bg-black/95 backdrop-blur-xl border border-white/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
                       <CardHeader>
                         <div className="flex items-start justify-between">
-                          <CardTitle className="text-base">{product.name}</CardTitle>
+                          <CardTitle className="text-base font-semibold text-foreground">{product.name}</CardTitle>
                           {getStatusBadge(product.status)}
                         </div>
                         {product.createdBy && (
@@ -609,7 +609,7 @@ const ProductManagement = () => {
           ) : (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
               {products.map((product) => (
-                <Card key={product._id}>
+                <Card key={product._id} className="bg-white/95 dark:bg-black/95 backdrop-blur-xl border border-white/20 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
                   <CardHeader>
                     <div className="flex items-start justify-between">
                       <CardTitle className="text-base">{product.name}</CardTitle>

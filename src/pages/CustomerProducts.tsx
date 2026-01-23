@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import Header from '@/components/Header';
+import abstractImage from '@/assets/abstract-login.jpg';
 import { getApiUrl } from '@/lib/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -42,13 +43,8 @@ const CustomerProducts = () => {
     if (!user?.token) return;
     try {
       setLoading(true);
-      const res = await fetch(getApiUrl('/api/customer/products'), {
-        headers: {
-          Authorization: `Bearer ${user.token}`,
-        },
-      });
-      if (!res.ok) throw new Error('Failed to load products');
-      const data = await res.json();
+      const { cachedFetch } = await import('@/lib/cached-fetch');
+      const data = await cachedFetch<Product[]>('/api/customer/products', user.token);
       setProducts(data);
     } catch (error: any) {
       console.error('Load products error:', error);
@@ -121,9 +117,19 @@ const CustomerProducts = () => {
   const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background relative">
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+        <img 
+          src={abstractImage} 
+          alt="" 
+          className="absolute inset-0 w-full h-full opacity-[0.30] object-cover"
+          loading="lazy"
+          fetchPriority="low"
+        />
+        <div className="absolute inset-0 bg-background/30" />
+      </div>
       <Header />
-      <main className="container mx-auto px-6 pt-28 pb-12">
+      <main className="container mx-auto px-6 pt-28 pb-12 relative z-10">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
             <Button

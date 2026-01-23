@@ -6,6 +6,7 @@ import bcrypt from "bcryptjs";
 import jwt, { JwtPayload } from "jsonwebtoken";
 import nodemailer from "nodemailer";
 import rateLimit from "express-rate-limit";
+import crypto from "crypto";
 import { User } from "./models/User";
 import { RevokedToken } from "./models/RevokedToken";
 import { PasswordResetToken } from "./models/PasswordResetToken";
@@ -16,6 +17,34 @@ import { Order } from "./models/Order";
 import { PendingSettingsChange } from "./models/PendingSettingsChange";
 import { CustomerPricing } from "./models/CustomerPricing";
 import { AdminProductPricing } from "./models/AdminProductPricing";
+
+// Simple in-memory cache for ETags (key: userId + endpoint + params, value: etag)
+const etagCache = new Map<string, string>();
+const CACHE_TTL = 60 * 1000; // 60 seconds
+const cacheTimestamps = new Map<string, number>();
+
+// Helper function to add caching to any endpoint
+const addCaching = (req: express.Request, res: express.Response, cacheKey: string): boolean => {
+  const cachedEtag = etagCache.get(cacheKey);
+  const cacheTime = cacheTimestamps.get(cacheKey);
+  const clientEtag = req.headers['if-none-match'] as string | undefined;
+
+  if (cachedEtag && clientEtag && clientEtag === cachedEtag && cacheTime && Date.now() - cacheTime < CACHE_TTL) {
+    res.setHeader('ETag', cachedEtag);
+    res.setHeader('Cache-Control', 'private, max-age=60');
+    res.status(304).end();
+    return true; // Cache hit, response sent
+  }
+  return false; // Cache miss, continue processing
+};
+
+const setCacheHeaders = (res: express.Response, cacheKey: string, data: any): void => {
+  const etag = `"${crypto.createHash('md5').update(JSON.stringify(data)).digest('hex')}"`;
+  res.setHeader('ETag', etag);
+  res.setHeader('Cache-Control', 'private, max-age=60');
+  etagCache.set(cacheKey, etag);
+  cacheTimestamps.set(cacheKey, Date.now());
+};
 
 dotenv.config();
 
@@ -90,10 +119,48 @@ const generalApiLimiter = rateLimit({
   message: "Too many requests from this IP, please try again later.",
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => {
+    // Exempt notification endpoints from rate limiting
+    // Check both originalUrl and path to catch all cases
+    const originalUrl = req.originalUrl || req.url || '';
+    const path = req.path || '';
+    const baseUrl = originalUrl.split('?')[0]; // Remove query params
+
+    // Notification endpoint patterns to match
+    const notificationPatterns = [
+      'system-settings/pending',
+      'products/pending',
+      'admin/order-notifications'
+    ];
+
+    // Check if any notification pattern matches
+    const isNotificationEndpoint = notificationPatterns.some(pattern => {
+      return originalUrl.includes(pattern) ||
+        baseUrl.includes(pattern) ||
+        path.includes(pattern);
+    });
+
+    return isNotificationEndpoint;
+  },
 });
 
-// Apply general rate limiting to all API routes
-app.use("/api/", generalApiLimiter);
+// Apply general rate limiting to all API routes EXCEPT notification endpoints
+// Notification endpoints are handled separately below
+app.use("/api/", (req, res, next) => {
+  // Skip rate limiting for notification endpoints
+  const url = req.originalUrl || req.url || '';
+  const isNotificationEndpoint =
+    url.includes('/system-settings/pending') ||
+    url.includes('/products/pending') ||
+    url.includes('/admin/order-notifications');
+
+  if (isNotificationEndpoint) {
+    return next(); // Skip rate limiter for notification endpoints
+  }
+
+  // Apply rate limiter for all other endpoints
+  generalApiLimiter(req, res, next);
+});
 
 // Simple health check route (no rate limit needed)
 app.get("/api/health", (_req, res) => {
@@ -104,80 +171,159 @@ app.get("/api/health", (_req, res) => {
 app.get("/api/admin/users/stats", authenticate, requireAdminOrSuper, async (req, res) => {
   try {
     const auth = (req as any).user as { id: string; isSuperAdmin?: boolean; role?: string };
+    const { level, parentId } = req.query as { level?: string; parentId?: string };
+
+    // Build cache key including filter parameters
+    const cacheKey = `stats-${auth.id}-${level || 'all'}-${parentId || 'none'}`;
+    const cachedEtag = etagCache.get(cacheKey);
+    const cacheTime = cacheTimestamps.get(cacheKey);
+    const clientEtag = req.headers['if-none-match'] as string | undefined;
+
+    // If we have a cached ETag and it matches, and cache is still valid, return 304 immediately
+    // This avoids ALL database queries for cached responses
+    if (cachedEtag && clientEtag && clientEtag === cachedEtag && cacheTime && Date.now() - cacheTime < CACHE_TTL) {
+      res.setHeader('ETag', cachedEtag);
+      res.setHeader('Cache-Control', 'private, max-age=60');
+      return res.status(304).end();
+    }
+
+    // Only do database queries if cache miss or invalid
     const currentUser = await User.findById(auth.id);
     if (!currentUser) {
       return res.status(401).json({ message: "User not found." });
     }
 
-    const filter: any = {};
-
     let adminCount = 0;
     let distributorCount = 0;
     let customerCount = 0;
+    let filter: any = { isActive: true };
 
-    // Role-based filtering: users can only see their associated users
-    if (currentUser.role === "distributor") {
-      // Distributors can only see customers they created
-      customerCount = await User.countDocuments({
-        parentId: currentUser._id,
-        role: "customer",
-        isActive: true,
-      });
-    } else if (currentUser.role === "admin" && !auth.isSuperAdmin) {
-      // Regular admins can see distributors they created and customers under those distributors
-      // Get distributors created by this admin
-      distributorCount = await User.countDocuments({
-        parentId: currentUser._id,
-        role: "distributor",
-        isActive: true,
-      });
-
-      // Get customers under those distributors
-      const distributorIds = await User.find({ parentId: currentUser._id, role: "distributor" })
-        .select("_id")
-        .lean()
-        .exec();
-      const distributorObjectIds = distributorIds.map((d) => d._id);
-      
-      if (distributorObjectIds.length > 0) {
+    // Apply hierarchy filter if specified
+    if (level && level !== 'all') {
+      filter.role = level;
+      if (parentId) {
+        filter.parentId = new mongoose.Types.ObjectId(parentId);
+      } else if (level === 'distributor' && !auth.isSuperAdmin) {
+        // For regular admins filtering by distributor, show only their distributors
+        filter.parentId = currentUser._id;
+      } else if (level === 'customer') {
+        // For customers, need to check if parentId is set or use current user's hierarchy
+        if (!auth.isSuperAdmin && !parentId) {
+          // Regular admin: show customers under their distributors
+          const distributorIds = await User.find({ parentId: currentUser._id, role: "distributor" })
+            .select("_id")
+            .lean()
+            .exec();
+          const distributorObjectIds = distributorIds.map((d) => d._id);
+          if (distributorObjectIds.length > 0) {
+            filter.parentId = { $in: [currentUser._id, ...distributorObjectIds] };
+          } else {
+            filter.parentId = currentUser._id;
+          }
+        }
+      }
+    } else {
+      // No filter - use role-based logic
+      // Role-based filtering: users can only see their associated users
+      if (currentUser.role === "distributor") {
+        // Distributors can only see customers they created
         customerCount = await User.countDocuments({
-          parentId: { $in: distributorObjectIds },
+          parentId: currentUser._id,
           role: "customer",
           isActive: true,
         });
-      }
+      } else if (currentUser.role === "admin" && !auth.isSuperAdmin) {
+        // Regular admins can see distributors they created and customers under those distributors
+        // Parallelize all queries for better performance
+        const [distributorCountResult, distributorIdsResult, directCustomerCountResult] = await Promise.all([
+          User.countDocuments({
+            parentId: currentUser._id,
+            role: "distributor",
+            isActive: true,
+          }),
+          User.find({ parentId: currentUser._id, role: "distributor" })
+            .select("_id")
+            .lean()
+            .exec(),
+          User.countDocuments({
+            parentId: currentUser._id,
+            role: "customer",
+            isActive: true,
+          }),
+        ]);
 
-      // Also count customers directly created by this admin
-      const directCustomerCount = await User.countDocuments({
-        parentId: currentUser._id,
-        role: "customer",
-        isActive: true,
-      });
-      customerCount += directCustomerCount;
-    } else if (auth.isSuperAdmin) {
-      // Super admin can see everyone
-      adminCount = await User.countDocuments({
-        role: "admin",
-        isActive: true,
-      });
-      distributorCount = await User.countDocuments({
-        role: "distributor",
-        isActive: true,
-      });
-      customerCount = await User.countDocuments({
-        role: "customer",
-        isActive: true,
-      });
+        distributorCount = distributorCountResult;
+        const distributorObjectIds = distributorIdsResult.map((d) => d._id);
+        customerCount = directCustomerCountResult;
+
+        if (distributorObjectIds.length > 0) {
+          const indirectCustomerCount = await User.countDocuments({
+            parentId: { $in: distributorObjectIds },
+            role: "customer",
+            isActive: true,
+          });
+          customerCount += indirectCustomerCount;
+        }
+      } else if (auth.isSuperAdmin) {
+        // Super admin can see everyone - parallelize all counts
+        [adminCount, distributorCount, customerCount] = await Promise.all([
+          User.countDocuments({
+            role: "admin",
+            isActive: true,
+          }),
+          User.countDocuments({
+            role: "distributor",
+            isActive: true,
+          }),
+          User.countDocuments({
+            role: "customer",
+            isActive: true,
+          }),
+        ]);
+      }
+    }
+
+    // If filter is applied, count based on filter
+    if (level && level !== 'all') {
+      const count = await User.countDocuments(filter);
+      if (level === 'admin') {
+        adminCount = count;
+        distributorCount = 0;
+        customerCount = 0;
+      } else if (level === 'distributor') {
+        distributorCount = count;
+        adminCount = 0;
+        customerCount = 0;
+      } else if (level === 'customer') {
+        customerCount = count;
+        adminCount = 0;
+        distributorCount = 0;
+      }
     }
 
     const total = adminCount + distributorCount + customerCount;
-
-    return res.status(200).json({
+    const data = {
       total,
       admin: adminCount,
       distributor: distributorCount,
       customer: customerCount,
-    });
+    };
+
+    // Generate ETag from data hash for caching
+    const etag = `"${crypto.createHash('md5').update(JSON.stringify(data)).digest('hex')}"`;
+    res.setHeader('ETag', etag);
+    res.setHeader('Cache-Control', 'private, max-age=60'); // Cache for 60 seconds
+
+    // Update cache
+    etagCache.set(cacheKey, etag);
+    cacheTimestamps.set(cacheKey, Date.now());
+
+    // Check if client has cached version (double check after generating)
+    if (clientEtag === etag) {
+      return res.status(304).end();
+    }
+
+    return res.status(200).json(data);
   } catch (error) {
     console.error("Get user stats error:", error);
     return res.status(500).json({ message: "Internal server error." });
@@ -187,8 +333,8 @@ app.get("/api/admin/users/stats", authenticate, requireAdminOrSuper, async (req,
 // Get revenue and orders statistics with hierarchical breakdown
 app.get("/api/admin/stats/revenue-orders", authenticate, requireAdminOrSuper, async (req, res) => {
   try {
-    const { level, parentId, dateFilter, startDate, endDate, month, year } = req.query as { 
-      level?: string; 
+    const { level, parentId, dateFilter, startDate, endDate, month, year } = req.query as {
+      level?: string;
       parentId?: string;
       dateFilter?: string; // 'all' | 'today' | 'thisMonth' | 'thisYear' | 'custom' | 'month' | 'year'
       startDate?: string;
@@ -197,20 +343,36 @@ app.get("/api/admin/stats/revenue-orders", authenticate, requireAdminOrSuper, as
       year?: string;
     };
     const auth = (req as any).user as { id: string; isSuperAdmin?: boolean; role?: string };
+
+    // Check cache FIRST before any database queries - create cache key from all parameters
+    const cacheKey = `revenue-orders-${auth.id}-${level || 'none'}-${parentId || 'none'}-${dateFilter || 'all'}-${startDate || ''}-${endDate || ''}-${month || ''}-${year || ''}`;
+    const cachedEtag = etagCache.get(cacheKey);
+    const cacheTime = cacheTimestamps.get(cacheKey);
+    const clientEtag = req.headers['if-none-match'] as string | undefined;
+
+    // If we have a cached ETag and it matches, and cache is still valid, return 304 immediately
+    // This avoids ALL database queries for cached responses
+    if (cachedEtag && clientEtag && clientEtag === cachedEtag && cacheTime && Date.now() - cacheTime < CACHE_TTL) {
+      res.setHeader('ETag', cachedEtag);
+      res.setHeader('Cache-Control', 'private, max-age=60');
+      return res.status(304).end();
+    }
+
+    // Only do database queries if cache miss or invalid
     const currentUser = await User.findById(auth.id);
     if (!currentUser) {
       return res.status(401).json({ message: "User not found." });
     }
 
     let filter: any = {};
-    
+
     // Apply date filters
     if (dateFilter && dateFilter !== 'all') {
       const now = new Date();
       let dateStart: Date;
       let dateEnd: Date = new Date(now);
       dateEnd.setHours(23, 59, 59, 999);
-      
+
       if (dateFilter === 'today') {
         dateStart = new Date(now);
         dateStart.setHours(0, 0, 0, 0);
@@ -236,7 +398,7 @@ app.get("/api/admin/stats/revenue-orders", authenticate, requireAdminOrSuper, as
         // Default to all time if invalid filter
         dateStart = new Date(0);
       }
-      
+
       filter.createdAt = {
         $gte: dateStart,
         $lte: dateEnd,
@@ -259,13 +421,13 @@ app.get("/api/admin/stats/revenue-orders", authenticate, requireAdminOrSuper, as
     }
     // Super admin can see everyone
 
-    // Get total revenue and orders (only count amountPaid, not totalAmount)
-    const totalRevenueResult = await Order.aggregate([
+    // Get total revenue and orders in a single optimized aggregation
+    const totalStatsResult = await Order.aggregate([
       { $match: filter },
       {
         $group: {
           _id: null,
-          total: {
+          totalRevenue: {
             $sum: {
               $cond: [
                 { $and: [{ $ne: ["$amountPaid", null] }, { $gt: ["$amountPaid", 0] }] },
@@ -273,13 +435,13 @@ app.get("/api/admin/stats/revenue-orders", authenticate, requireAdminOrSuper, as
                 0
               ]
             }
-          }
+          },
+          totalOrders: { $sum: 1 }
         }
-      },
+      }
     ]);
-    const totalRevenue = totalRevenueResult[0]?.total || 0;
-
-    const totalOrders = await Order.countDocuments(filter);
+    const totalRevenue = totalStatsResult[0]?.totalRevenue || 0;
+    const totalOrders = totalStatsResult[0]?.totalOrders || 0;
 
     // If level is specified, get breakdown
     let breakdown: any[] = [];
@@ -420,11 +582,27 @@ app.get("/api/admin/stats/revenue-orders", authenticate, requireAdminOrSuper, as
       breakdown = customerBreakdown;
     }
 
-    return res.status(200).json({
+    const data = {
       totalRevenue,
       totalOrders,
       breakdown,
-    });
+    };
+
+    // Generate ETag from data hash for caching
+    const etag = `"${crypto.createHash('md5').update(JSON.stringify(data)).digest('hex')}"`;
+    res.setHeader('ETag', etag);
+    res.setHeader('Cache-Control', 'private, max-age=60'); // Cache for 60 seconds
+
+    // Update cache
+    etagCache.set(cacheKey, etag);
+    cacheTimestamps.set(cacheKey, Date.now());
+
+    // Check if client has cached version (double check after generating)
+    if (clientEtag === etag) {
+      return res.status(304).end();
+    }
+
+    return res.status(200).json(data);
   } catch (error) {
     console.error("Get revenue/orders stats error:", error);
     return res.status(500).json({ message: "Internal server error." });
@@ -441,6 +619,11 @@ app.get("/api/admin/users", authenticate, requireAdminOrSuper, async (req, res) 
     };
 
     const auth = (req as any).user as { id: string; isSuperAdmin?: boolean; role?: string };
+
+    // Check cache first
+    const cacheKey = `users-${auth.id}-${search || ''}-${role || 'all'}-${status || 'all'}`;
+    if (addCaching(req, res, cacheKey)) return;
+
     const currentUser = await User.findById(auth.id);
     if (!currentUser) {
       return res.status(401).json({ message: "User not found." });
@@ -508,6 +691,7 @@ app.get("/api/admin/users", authenticate, requireAdminOrSuper, async (req, res) 
       .lean()
       .exec();
 
+    setCacheHeaders(res, cacheKey, users);
     return res.status(200).json(users);
   } catch (error) {
     console.error("List users error:", error);
@@ -1114,8 +1298,8 @@ app.post("/api/auth/login", loginLimiter, async (req, res) => {
 
     // Check if email is verified (skip for super admin)
     if (!isSuperAdminUser && !user.emailVerified) {
-      return res.status(403).json({ 
-        message: "Please verify your email address before logging in. Check your inbox for the verification link." 
+      return res.status(403).json({
+        message: "Please verify your email address before logging in. Check your inbox for the verification link."
       });
     }
 
@@ -1147,10 +1331,10 @@ app.post("/api/auth/login", loginLimiter, async (req, res) => {
     const rawDuration = systemSettings?.jwtSessionDuration || 3600;
     // Backwards compatibility: if duration is very small, treat it as hours instead of seconds
     const jwtDurationSeconds = rawDuration < 60 ? rawDuration * 3600 : rawDuration;
-    const jwtDurationString = jwtDurationSeconds < 60 
-      ? `${jwtDurationSeconds}s` 
-      : jwtDurationSeconds < 3600 
-        ? `${Math.floor(jwtDurationSeconds / 60)}m` 
+    const jwtDurationString = jwtDurationSeconds < 60
+      ? `${jwtDurationSeconds}s`
+      : jwtDurationSeconds < 3600
+        ? `${Math.floor(jwtDurationSeconds / 60)}m`
         : `${Math.floor(jwtDurationSeconds / 3600)}h`;
 
     const token = jwt.sign(
@@ -1179,6 +1363,7 @@ app.post("/api/auth/login", loginLimiter, async (req, res) => {
       expiresAt,
       mustChangePassword: user.mustChangePassword || false,
       uid: user.uid || undefined,
+      businessName: user.businessName || undefined,
     });
   } catch (error) {
     console.error("Login error:", error);
@@ -1239,15 +1424,15 @@ function generateUID(role: string, businessName?: string, name?: string): string
   const rolePrefix = role.toUpperCase().substring(0, 3); // ADM, DIS, CUS
   const businessPart = businessName
     ? businessName
-        .replace(/[^a-zA-Z0-9]/g, "")
-        .toUpperCase()
-        .substring(0, 6)
+      .replace(/[^a-zA-Z0-9]/g, "")
+      .toUpperCase()
+      .substring(0, 6)
     : "";
   const namePart = name
     ? name
-        .replace(/[^a-zA-Z0-9]/g, "")
-        .toUpperCase()
-        .substring(0, 4)
+      .replace(/[^a-zA-Z0-9]/g, "")
+      .toUpperCase()
+      .substring(0, 4)
     : "";
   const randomPart = Math.floor(1000 + Math.random() * 9000).toString();
   return `${rolePrefix}${businessPart}${namePart}${randomPart}`.substring(0, 20);
@@ -1562,9 +1747,9 @@ app.get("/api/auth/verify-email", emailVerificationLimiter, async (req, res) => 
       // Continue even if email fails
     }
 
-    return res.status(200).json({ 
+    return res.status(200).json({
       success: true,
-      message: "Email verified successfully. Your temporary password has been sent to your email. Please change it immediately after logging in." 
+      message: "Email verified successfully. Your temporary password has been sent to your email. Please change it immediately after logging in."
     });
   } catch (error) {
     console.error("Verify email error:", error);
@@ -1796,16 +1981,23 @@ async function requireAdminOrSuper(
 // Get system settings (super admin can see all, admin can see limited read-only)
 app.get("/api/system-settings", authenticate, requireAdminOrSuper, async (req, res) => {
   try {
-    const auth = (req as any).user as { isSuperAdmin?: boolean };
+    const auth = (req as any).user as { id: string; isSuperAdmin?: boolean };
+
+    // Check cache first
+    const cacheKey = `system-settings-${auth.id}-${auth.isSuperAdmin ? 'super' : 'admin'}`;
+    if (addCaching(req, res, cacheKey)) return;
+
     const settings = await SystemSettings.findOne();
+    let responseData: any;
+
     if (!settings) {
       const newSettings = await SystemSettings.create({});
       // Return limited fields for admin, all for super admin
       if (auth.isSuperAdmin) {
-        return res.status(200).json(newSettings);
+        responseData = newSettings;
       } else {
         // Return only relevant fields for admin (read-only)
-        return res.status(200).json({
+        responseData = {
           jwtSessionDuration: newSettings.jwtSessionDuration,
           passwordMinLength: newSettings.passwordMinLength,
           passwordRequireUppercase: newSettings.passwordRequireUppercase,
@@ -1818,8 +2010,10 @@ app.get("/api/system-settings", authenticate, requireAdminOrSuper, async (req, r
             distributor: newSettings.fieldRequirements?.distributor || {},
             customer: newSettings.fieldRequirements?.customer || {},
           },
-        });
+        };
       }
+      setCacheHeaders(res, cacheKey, responseData);
+      return res.status(200).json(responseData);
     }
     // Return limited fields for admin, all for super admin
     if (auth.isSuperAdmin) {
@@ -1852,7 +2046,7 @@ app.put("/api/system-settings", authenticate, requireSuperAdmin, async (req, res
   try {
     const updateData = req.body;
     const settings = await SystemSettings.findOne();
-    
+
     if (!settings) {
       const newSettings = await SystemSettings.create(updateData);
       return res.status(200).json(newSettings);
@@ -1872,14 +2066,14 @@ app.put("/api/system-settings", authenticate, requireSuperAdmin, async (req, res
 app.post("/api/system-settings/pending", authenticate, requireAdminOrSuper, async (req, res) => {
   try {
     const auth = (req as any).user as { id: string; isSuperAdmin?: boolean };
-    
+
     // Only allow regular admins to submit pending changes
     if (auth.isSuperAdmin) {
       return res.status(403).json({ message: "Super admins cannot submit pending changes." });
     }
 
     const { fieldRequirements } = req.body;
-    
+
     if (!fieldRequirements || (!fieldRequirements.distributor && !fieldRequirements.customer)) {
       return res.status(400).json({ message: "Field requirements for distributor or customer are required." });
     }
@@ -1919,7 +2113,7 @@ app.get("/api/system-settings/pending", authenticate, requireSuperAdmin, async (
       .sort({ createdAt: -1 })
       .lean()
       .exec();
-    
+
     return res.status(200).json(pendingChanges);
   } catch (error) {
     console.error("Get pending settings error:", error);
@@ -1931,7 +2125,7 @@ app.get("/api/system-settings/pending", authenticate, requireSuperAdmin, async (
 app.get("/api/system-settings/pending/my", authenticate, requireAdminOrSuper, async (req, res) => {
   try {
     const auth = (req as any).user as { id: string; isSuperAdmin?: boolean };
-    
+
     if (auth.isSuperAdmin) {
       return res.status(200).json(null);
     }
@@ -1944,7 +2138,7 @@ app.get("/api/system-settings/pending/my", authenticate, requireAdminOrSuper, as
       .sort({ createdAt: -1 })
       .lean()
       .exec();
-    
+
     return res.status(200).json(pendingChange);
   } catch (error) {
     console.error("Get my pending settings error:", error);
@@ -1957,7 +2151,7 @@ app.post("/api/system-settings/pending/:id/approve", authenticate, requireSuperA
   try {
     const { id } = req.params;
     const auth = (req as any).user as { id: string };
-    
+
     const pendingChange = await PendingSettingsChange.findById(id);
     if (!pendingChange) {
       return res.status(404).json({ message: "Pending change not found." });
@@ -2013,7 +2207,7 @@ app.post("/api/system-settings/pending/:id/reject", authenticate, requireSuperAd
     const { id } = req.params;
     const { reason } = req.body as { reason?: string };
     const auth = (req as any).user as { id: string };
-    
+
     const pendingChange = await PendingSettingsChange.findById(id);
     if (!pendingChange) {
       return res.status(404).json({ message: "Pending change not found." });
@@ -2041,10 +2235,14 @@ app.post("/api/system-settings/pending/:id/reject", authenticate, requireSuperAd
 app.get("/api/products", authenticate, requireAdminOrSuper, async (req, res) => {
   try {
     const { status } = req.query as { status?: string };
-    const auth = (req as any).user as { isSuperAdmin?: boolean };
-    
+    const auth = (req as any).user as { id: string; isSuperAdmin?: boolean };
+
+    // Check cache first
+    const cacheKey = `products-${auth.id}-${status || 'all'}-${auth.isSuperAdmin ? 'super' : 'admin'}`;
+    if (addCaching(req, res, cacheKey)) return;
+
     const filter: any = {};
-    
+
     // Super admin can see all products, admin can only see approved products
     if (!auth.isSuperAdmin) {
       filter.status = "approved";
@@ -2052,7 +2250,7 @@ app.get("/api/products", authenticate, requireAdminOrSuper, async (req, res) => 
     } else if (status) {
       filter.status = status;
     }
-    
+
     const products = await Product.find(filter)
       .populate("createdBy", "name email")
       .populate("reviewedBy", "name email")
@@ -2298,6 +2496,11 @@ app.post("/api/products/:id/reject", authenticate, requireSuperAdmin, async (req
 app.get("/api/distributor/customer-pricing", authenticate, async (req, res) => {
   try {
     const auth = (req as any).user as { id: string };
+
+    // Check cache first
+    const cacheKey = `distributor-pricing-${auth.id}`;
+    if (addCaching(req, res, cacheKey)) return;
+
     const distributor = await User.findById(auth.id);
     if (!distributor || distributor.role !== "distributor") {
       return res.status(403).json({ message: "Access denied. Distributor only." });
@@ -2309,6 +2512,7 @@ app.get("/api/distributor/customer-pricing", authenticate, async (req, res) => {
       .lean()
       .exec();
 
+    setCacheHeaders(res, cacheKey, pricing);
     return res.status(200).json(pricing);
   } catch (error) {
     console.error("Get customer pricing error:", error);
@@ -2391,6 +2595,11 @@ app.delete("/api/distributor/customer-pricing/:id", authenticate, async (req, re
 app.get("/api/distributor/customers", authenticate, async (req, res) => {
   try {
     const auth = (req as any).user as { id: string };
+
+    // Check cache first
+    const cacheKey = `distributor-customers-${auth.id}`;
+    if (addCaching(req, res, cacheKey)) return;
+
     const distributor = await User.findById(auth.id);
     if (!distributor || distributor.role !== "distributor") {
       return res.status(403).json({ message: "Access denied. Distributor only." });
@@ -2406,6 +2615,7 @@ app.get("/api/distributor/customers", authenticate, async (req, res) => {
       .lean()
       .exec();
 
+    setCacheHeaders(res, cacheKey, customers);
     return res.status(200).json(customers);
   } catch (error) {
     console.error("Get distributor customers error:", error);
@@ -2417,6 +2627,11 @@ app.get("/api/distributor/customers", authenticate, async (req, res) => {
 app.get("/api/distributor/products", authenticate, async (req, res) => {
   try {
     const auth = (req as any).user as { id: string };
+
+    // Check cache first
+    const cacheKey = `distributor-products-${auth.id}`;
+    if (addCaching(req, res, cacheKey)) return;
+
     const distributor = await User.findById(auth.id);
     if (!distributor || distributor.role !== "distributor") {
       return res.status(403).json({ message: "Access denied. Distributor only." });
@@ -2453,6 +2668,7 @@ app.get("/api/distributor/products", authenticate, async (req, res) => {
         };
       });
 
+    setCacheHeaders(res, cacheKey, products);
     return res.status(200).json(products);
   } catch (error) {
     console.error("Get distributor products error:", error);
@@ -2464,6 +2680,11 @@ app.get("/api/distributor/products", authenticate, async (req, res) => {
 app.get("/api/customer/products", authenticate, async (req, res) => {
   try {
     const auth = (req as any).user as { id: string };
+
+    // Check cache first
+    const cacheKey = `customer-products-${auth.id}`;
+    if (addCaching(req, res, cacheKey)) return;
+
     const customer = await User.findById(auth.id);
     if (!customer || customer.role !== "customer") {
       return res.status(403).json({ message: "Access denied. Customer only." });
@@ -2516,6 +2737,7 @@ app.get("/api/customer/products", authenticate, async (req, res) => {
         };
       });
 
+    setCacheHeaders(res, cacheKey, productsWithPricing);
     return res.status(200).json(productsWithPricing);
   } catch (error) {
     console.error("Get customer products error:", error);
@@ -2631,6 +2853,11 @@ app.post("/api/customer/orders", authenticate, async (req, res) => {
 app.get("/api/customer/orders", authenticate, async (req, res) => {
   try {
     const auth = (req as any).user as { id: string };
+
+    // Check cache first
+    const cacheKey = `customer-orders-${auth.id}`;
+    if (addCaching(req, res, cacheKey)) return;
+
     const customer = await User.findById(auth.id);
     if (!customer || customer.role !== "customer") {
       return res.status(403).json({ message: "Access denied. Customer only." });
@@ -2642,6 +2869,7 @@ app.get("/api/customer/orders", authenticate, async (req, res) => {
       .lean()
       .exec();
 
+    setCacheHeaders(res, cacheKey, orders);
     return res.status(200).json(orders);
   } catch (error) {
     console.error("Get customer orders error:", error);
@@ -2763,14 +2991,29 @@ app.put("/api/customer/orders/:id/payment", authenticate, async (req, res) => {
 app.get("/api/distributor/orders", authenticate, async (req, res) => {
   try {
     const auth = (req as any).user as { id: string };
+
+    // Check cache first (but allow fresh data for polling)
+    const cacheKey = `distributor-orders-${auth.id}`;
+    const clientEtag = req.headers['if-none-match'] as string | undefined;
+    const cachedEtag = etagCache.get(cacheKey);
+    // For distributor orders, we allow cache but don't force it (for polling)
+    if (cachedEtag && clientEtag && clientEtag === cachedEtag) {
+      const cacheTime = cacheTimestamps.get(cacheKey);
+      if (cacheTime && Date.now() - cacheTime < 5000) { // Short cache for polling
+        res.setHeader('ETag', cachedEtag);
+        res.setHeader('Cache-Control', 'private, max-age=5');
+        return res.status(304).end();
+      }
+    }
+
     const distributor = await User.findById(auth.id);
     if (!distributor || distributor.role !== "distributor") {
       return res.status(403).json({ message: "Access denied. Distributor only." });
     }
 
-    const orders = await Order.find({ 
-      distributorId: distributor._id, 
-      status: { $ne: "delivered" } 
+    const orders = await Order.find({
+      distributorId: distributor._id,
+      status: { $ne: "delivered" }
     })
       .populate("customerId", "name email")
       .populate("items.productId", "name imageUrl")
@@ -2795,7 +3038,9 @@ app.get("/api/distributor/orders", authenticate, async (req, res) => {
       ordersByDate[dateKey].push(order);
     });
 
-    return res.status(200).json({ ordersByDate, allOrders: orders });
+    const responseData = { ordersByDate, allOrders: orders };
+    setCacheHeaders(res, cacheKey, responseData);
+    return res.status(200).json(responseData);
   } catch (error) {
     console.error("Get distributor orders error:", error);
     return res.status(500).json({ message: "Internal server error." });
@@ -2945,6 +3190,11 @@ app.post("/api/distributor/orders/send-to-admin", authenticate, async (req, res)
 app.get("/api/admin/products/available", authenticate, requireAdminOrSuper, async (req, res) => {
   try {
     const auth = (req as any).user as { id: string; isSuperAdmin?: boolean };
+
+    // Check cache first
+    const cacheKey = `admin-products-available-${auth.id}`;
+    if (addCaching(req, res, cacheKey)) return;
+
     const admin = await User.findById(auth.id);
     if (!admin || (admin.role !== "admin" && !auth.isSuperAdmin)) {
       return res.status(403).json({ message: "Access denied. Admin only." });
@@ -2956,6 +3206,7 @@ app.get("/api/admin/products/available", authenticate, requireAdminOrSuper, asyn
       .lean()
       .exec();
 
+    setCacheHeaders(res, cacheKey, products);
     return res.status(200).json(products);
   } catch (error) {
     console.error("Get available products error:", error);
@@ -2967,6 +3218,11 @@ app.get("/api/admin/products/available", authenticate, requireAdminOrSuper, asyn
 app.get("/api/admin/products/used", authenticate, requireAdminOrSuper, async (req, res) => {
   try {
     const auth = (req as any).user as { id: string; isSuperAdmin?: boolean };
+
+    // Check cache first
+    const cacheKey = `admin-products-used-${auth.id}`;
+    if (addCaching(req, res, cacheKey)) return;
+
     const admin = await User.findById(auth.id);
     if (!admin || (admin.role !== "admin" && !auth.isSuperAdmin)) {
       return res.status(403).json({ message: "Access denied. Admin only." });
@@ -2999,7 +3255,9 @@ app.get("/api/admin/products/used", authenticate, requireAdminOrSuper, async (re
       });
     });
 
-    return res.status(200).json(Array.from(productsMap.values()));
+    const responseData = Array.from(productsMap.values());
+    setCacheHeaders(res, cacheKey, responseData);
+    return res.status(200).json(responseData);
   } catch (error) {
     console.error("Get used products error:", error);
     return res.status(500).json({ message: "Internal server error." });
@@ -3128,6 +3386,11 @@ app.delete("/api/admin/products/pricing/:id", authenticate, requireAdminOrSuper,
 app.get("/api/admin/distributors", authenticate, requireAdminOrSuper, async (req, res) => {
   try {
     const auth = (req as any).user as { id: string; isSuperAdmin?: boolean };
+
+    // Check cache first
+    const cacheKey = `admin-distributors-${auth.id}`;
+    if (addCaching(req, res, cacheKey)) return;
+
     const admin = await User.findById(auth.id);
     if (!admin || (admin.role !== "admin" && !auth.isSuperAdmin)) {
       return res.status(403).json({ message: "Access denied. Admin only." });
@@ -3138,6 +3401,7 @@ app.get("/api/admin/distributors", authenticate, requireAdminOrSuper, async (req
       .lean()
       .exec();
 
+    setCacheHeaders(res, cacheKey, distributors);
     return res.status(200).json(distributors);
   } catch (error) {
     console.error("Get distributors error:", error);
@@ -3149,6 +3413,20 @@ app.get("/api/admin/distributors", authenticate, requireAdminOrSuper, async (req
 app.get("/api/admin/order-notifications", authenticate, requireAdminOrSuper, async (req, res) => {
   try {
     const auth = (req as any).user as { id: string; isSuperAdmin?: boolean };
+
+    // Check cache first (short cache for polling)
+    const cacheKey = `admin-order-notifications-${auth.id}-${auth.isSuperAdmin ? 'super' : 'admin'}`;
+    const clientEtag = req.headers['if-none-match'] as string | undefined;
+    const cachedEtag = etagCache.get(cacheKey);
+    if (cachedEtag && clientEtag && clientEtag === cachedEtag) {
+      const cacheTime = cacheTimestamps.get(cacheKey);
+      if (cacheTime && Date.now() - cacheTime < 3000) { // 3 second cache for polling
+        res.setHeader('ETag', cachedEtag);
+        res.setHeader('Cache-Control', 'private, max-age=3');
+        return res.status(304).end();
+      }
+    }
+
     const admin = await User.findById(auth.id);
     if (!admin) {
       return res.status(401).json({ message: "User not found." });
@@ -3177,10 +3455,11 @@ app.get("/api/admin/order-notifications", authenticate, requireAdminOrSuper, asy
 
     // Filter out orders that have been received by admin OR received by distributor
     // (if distributor received it, admin notification should be cleared)
-    const unreadNotifications = notifications.filter((n: any) => 
+    const unreadNotifications = notifications.filter((n: any) =>
       !n.adminReceivedAt && !n.receivedAt
     );
 
+    setCacheHeaders(res, cacheKey, unreadNotifications);
     return res.status(200).json(unreadNotifications);
   } catch (error) {
     console.error("Get admin order notifications error:", error);
@@ -3207,7 +3486,7 @@ app.put("/api/distributor/orders/:id/update-delivery-date", authenticate, async 
       .populate("customerId", "name email")
       .lean()
       .exec();
-    
+
     if (!order || order.distributorId?.toString() !== distributor._id.toString()) {
       return res.status(404).json({ message: "Order not found or doesn't belong to you." });
     }
@@ -3293,7 +3572,7 @@ app.post("/api/admin/order-notifications/mark-received-bulk", authenticate, requ
   try {
     const auth = (req as any).user as { id: string; isSuperAdmin?: boolean };
     const { orderIds } = req.body as { orderIds: string[] };
-    
+
     if (!Array.isArray(orderIds) || orderIds.length === 0) {
       return res.status(400).json({ message: "orderIds array is required." });
     }
@@ -3316,9 +3595,9 @@ app.post("/api/admin/order-notifications/mark-received-bulk", authenticate, requ
     }
 
     // Mark all as received by distributor - this also clears admin notifications
-    await Order.updateMany(filter, { 
+    await Order.updateMany(filter, {
       receivedAt: new Date(),
-      adminReceivedAt: new Date() 
+      adminReceivedAt: new Date()
     });
 
     return res.status(200).json({ message: "Orders marked as received." });
@@ -3394,7 +3673,7 @@ app.post("/api/distributor/orders/mark-received-bulk", authenticate, async (req,
   try {
     const auth = (req as any).user as { id: string };
     const { orderIds } = req.body as { orderIds: string[] };
-    
+
     if (!Array.isArray(orderIds) || orderIds.length === 0) {
       return res.status(400).json({ message: "orderIds array is required." });
     }
@@ -3419,9 +3698,9 @@ app.post("/api/distributor/orders/mark-received-bulk", authenticate, async (req,
     // Mark all as received by distributor - this also clears admin notifications
     await Order.updateMany(
       { _id: { $in: orderIds } },
-      { 
+      {
         receivedAt: new Date(),
-        adminReceivedAt: new Date() 
+        adminReceivedAt: new Date()
       }
     );
 
@@ -3444,13 +3723,13 @@ async function connectToMongoDB() {
     await mongoose.connect(MONGODB_URI);
     isConnected = true;
     console.log("Connected to MongoDB");
-    
+
     // Handle connection events
     mongoose.connection.on('error', (err) => {
       console.error('MongoDB connection error:', err);
       isConnected = false;
     });
-    
+
     mongoose.connection.on('disconnected', () => {
       console.log('MongoDB disconnected');
       isConnected = false;

@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getApiUrl } from '@/lib/api';
 import Header from '@/components/Header';
+import abstractImage from '@/assets/abstract-login.jpg';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -49,19 +50,15 @@ const DistributorTransit = () => {
   const loadTransitOrders = async () => {
     if (!user?.token) return;
     try {
-      const res = await fetch(getApiUrl('/api/distributor/orders'), {
-        headers: {
-          Authorization: `Bearer ${user.token}`,
-        },
-      });
-      if (!res.ok) throw new Error('Failed to load transit orders');
-      const data = await res.json();
-      
+      const { cachedFetch } = await import('@/lib/cached-fetch');
+      // Skip cache for polling requests to get fresh data
+      const data = await cachedFetch<any>('/api/distributor/orders', user.token, { skipCache: true });
+
       // Show all orders that are marked for today (including received ones)
-      const transit = (data.allOrders || []).filter((order: Order) => 
+      const transit = (data.allOrders || []).filter((order: Order) =>
         order.markedForToday
       );
-      
+
       // Only update if orders actually changed
       const ordersChanged = JSON.stringify(prevOrdersRef.current) !== JSON.stringify(transit);
       if (ordersChanged) {
@@ -84,7 +81,7 @@ const DistributorTransit = () => {
 
   const handleMarkReceived = async (orderIds: string[]) => {
     if (!user?.token) return;
-    
+
     setMarkingReceived(true);
     try {
       if (orderIds.length === 1) {
@@ -106,13 +103,13 @@ const DistributorTransit = () => {
         });
         if (!res.ok) throw new Error('Failed to mark orders as received');
       }
-      
+
       toast({
         title: 'Success',
         description: `${orderIds.length} order(s) marked as received.`,
         variant: 'success',
       });
-      
+
       setSelectedOrders(new Set());
       await loadTransitOrders();
     } catch (error: any) {
@@ -130,7 +127,7 @@ const DistributorTransit = () => {
     // Only select orders that haven't been received yet
     const unreceivedOrders = transitOrders.filter(o => !o.receivedAt);
     const unreceivedOrderIds = unreceivedOrders.map(o => o._id);
-    
+
     if (unreceivedOrderIds.every(id => selectedOrders.has(id)) && unreceivedOrderIds.length > 0) {
       setSelectedOrders(new Set());
     } else {
@@ -150,15 +147,25 @@ const DistributorTransit = () => {
     });
   };
 
-  const selectedTransitOrders = transitOrders.filter(order => 
+  const selectedTransitOrders = transitOrders.filter(order =>
     selectedOrders.has(order._id) && !order.receivedAt
   );
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background relative">
+        <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+          <img
+            src={abstractImage}
+            alt=""
+            className="absolute inset-0 w-full h-full opacity-[0.30] object-cover"
+            loading="lazy"
+            fetchPriority="low"
+          />
+          <div className="absolute inset-0 bg-white/95 dark:bg-black/95 backdrop-blur-3xl" />
+        </div>
         <Header />
-        <main className="container mx-auto px-6 pt-28 pb-12">
+        <main className="container mx-auto px-4 md:px-6 pt-24 md:pt-28 pb-12 relative z-10">
           <div className="flex items-center justify-center min-h-[60vh]">
             <div className="flex flex-col items-center gap-4">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -171,9 +178,19 @@ const DistributorTransit = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background relative">
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+        <img
+          src={abstractImage}
+          alt=""
+          className="absolute inset-0 w-full h-full opacity-[0.30] object-cover"
+          loading="lazy"
+          fetchPriority="low"
+        />
+        <div className="absolute inset-0 bg-white/95 dark:bg-black/95 backdrop-blur-3xl" />
+      </div>
       <Header />
-      <main className="container mx-auto px-6 pt-28 pb-12">
+      <main className="container mx-auto px-4 md:px-6 pt-24 md:pt-28 pb-12 relative z-10">
         <Button
           variant="ghost"
           size="icon"
@@ -183,19 +200,19 @@ const DistributorTransit = () => {
           <ArrowLeft className="h-4 w-4" />
         </Button>
 
-        <div className="mb-6">
-          <h1 className="font-serif text-3xl font-medium mb-2 flex items-center gap-2">
-            <Truck className="h-8 w-8" />
+        <div className="mb-4 md:mb-6">
+          <h1 className="font-sans text-2xl md:text-4xl font-bold mb-1 md:mb-2 flex items-center gap-2 tracking-tight">
+            <Truck className="h-6 w-6 md:h-8 md:w-8 text-primary shrink-0" />
             Transit Box
           </h1>
-          <p className="text-muted-foreground">Orders in transit - mark as received when items arrive</p>
+          <p className="text-slate-600 dark:text-slate-400 font-medium text-sm md:text-base">Orders in transit - mark as received when items arrive</p>
         </div>
 
         {transitOrders.length === 0 ? (
-          <Card>
+          <Card className="bg-white/95 dark:bg-black/95 backdrop-blur-xl border border-white/20 shadow-xl">
             <CardContent className="py-12 text-center">
-              <Truck className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-              <p className="text-muted-foreground">No orders in transit.</p>
+              <Truck className="h-12 w-12 mx-auto mb-4 text-gray-600 dark:text-gray-400" />
+              <p className="text-gray-600 dark:text-gray-400 font-medium">No orders in transit.</p>
             </CardContent>
           </Card>
         ) : (
@@ -206,7 +223,7 @@ const DistributorTransit = () => {
                   checked={transitOrders.length > 0 && transitOrders.every(order => selectedOrders.has(order._id))}
                   onCheckedChange={handleSelectAll}
                 />
-                <span className="text-sm text-muted-foreground">
+                <span className="text-sm text-gray-600 dark:text-gray-400 font-medium">
                   {selectedTransitOrders.length > 0 ? `${selectedTransitOrders.length} selected` : 'Select all'}
                 </span>
               </div>
@@ -235,18 +252,19 @@ const DistributorTransit = () => {
               {transitOrders.map((order) => {
                 const isSelected = selectedOrders.has(order._id);
                 return (
-                  <Card key={order._id} className={`hover:shadow-md transition-shadow ${isSelected ? 'border-primary' : ''}`}>
+                  <Card key={order._id} className={`hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 bg-white/95 dark:bg-black/95 backdrop-blur-xl border-white/20 shadow-xl group ${isSelected ? 'border-primary' : ''}`}>
                     <CardContent className="pt-6">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-start gap-4 flex-1">
+                      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                        <div className="flex items-start gap-4 flex-1 min-w-0">
                           <Checkbox
                             checked={isSelected}
                             onCheckedChange={() => toggleOrderSelection(order._id)}
-                            disabled={order.receivedAt}
+                            disabled={!!order.receivedAt}
+                            className="mt-1"
                           />
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                              <h3 className="font-medium">Order #{order.orderNumber}</h3>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-2 mb-2">
+                              <h3 className="font-bold text-sm md:text-base break-all">Order #{order.orderNumber}</h3>
                               {order.receivedAt ? (
                                 <Badge variant="default" className="bg-green-600">Stocked</Badge>
                               ) : (
@@ -256,7 +274,7 @@ const DistributorTransit = () => {
                                 <Badge variant="secondary">Sent to Admin</Badge>
                               )}
                             </div>
-                            <p className="text-sm text-muted-foreground mb-2">
+                            <p className="text-sm text-gray-600 dark:text-gray-400 font-medium mb-2">
                               Customer: {order.customerId.name} ({order.customerId.email})
                             </p>
                             <div className="space-y-1 mb-2">
@@ -272,12 +290,13 @@ const DistributorTransit = () => {
                           </div>
                         </div>
                         {!order.receivedAt && (
-                          <div className="flex flex-col gap-2">
+                          <div className="flex flex-row md:flex-col gap-2 w-full md:w-auto justify-end md:justify-start">
                             <Button
                               variant="outline"
                               size="sm"
                               onClick={() => handleMarkReceived([order._id])}
                               disabled={markingReceived}
+                              className="w-full md:w-auto"
                             >
                               <CheckCircle2 className="mr-2 h-4 w-4" />
                               Mark Received

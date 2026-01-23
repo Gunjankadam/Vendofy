@@ -16,6 +16,35 @@
     <meta name="twitter:title" content="Vendofy - Role-Based Dashboard" />
     <meta name="twitter:description" content="A comprehensive role-based dashboard application for Administrators, Distributors, and Customers." />
     <meta name="twitter:image" content="/placeholder.svg" />
+
+    <!-- Preload critical fonts for faster rendering -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'" />
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" /></noscript>
+    <!-- Inline critical CSS variables to prevent FOUC -->
+    <style>
+      :root {
+        --background: 40 20% 98%;
+        --foreground: 30 10% 12%;
+        --font-serif: 'Playfair Display', Georgia, serif;
+        --font-sans: 'Inter', system-ui, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: var(--font-sans);
+        background-color: hsl(var(--background));
+        color: hsl(var(--foreground));
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+      #root {
+        min-height: 100vh;
+      }
+    </style>
   </head>
 
   <body>

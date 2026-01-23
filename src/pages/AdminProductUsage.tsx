@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { getApiUrl } from "../lib/api";
 import { useNavigate } from "react-router-dom";
+import abstractImage from "../assets/abstract-login.jpg";
 import { ArrowLeft, Package, Plus, Edit, Trash2, Loader2 } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
@@ -65,13 +66,9 @@ export default function AdminProductUsage() {
     if (!user?.token) return;
     try {
       setLoading(true);
-      const res = await fetch(getApiUrl("/api/admin/products/available"), {
-        headers: { Authorization: `Bearer ${user.token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setAvailableProducts(data);
-      }
+      const { cachedFetch } = await import('@/lib/cached-fetch');
+      const data = await cachedFetch<Product[]>("/api/admin/products/available", user.token).catch(() => []);
+      setAvailableProducts(data || []);
     } catch (error) {
       console.error("Load available products error:", error);
       toast({ title: "Error", description: "Failed to load available products.", variant: "destructive" });
@@ -84,13 +81,9 @@ export default function AdminProductUsage() {
     if (!user?.token) return;
     try {
       setLoadingUsed(true);
-      const res = await fetch(getApiUrl("/api/admin/products/used"), {
-        headers: { Authorization: `Bearer ${user.token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setUsedProducts(data);
-      }
+      const { cachedFetch } = await import('@/lib/cached-fetch');
+      const data = await cachedFetch<UsedProduct[]>("/api/admin/products/used", user.token).catch(() => []);
+      setUsedProducts(data || []);
     } catch (error) {
       console.error("Load used products error:", error);
       toast({ title: "Error", description: "Failed to load used products.", variant: "destructive" });
@@ -102,13 +95,9 @@ export default function AdminProductUsage() {
   const loadDistributors = async () => {
     if (!user?.token) return;
     try {
-      const res = await fetch(getApiUrl("/api/admin/distributors"), {
-        headers: { Authorization: `Bearer ${user.token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setDistributors(data);
-      }
+      const { cachedFetch } = await import('@/lib/cached-fetch');
+      const data = await cachedFetch<Distributor[]>("/api/admin/distributors", user.token).catch(() => []);
+      setDistributors(data || []);
     } catch (error) {
       console.error("Load distributors error:", error);
     }
@@ -221,8 +210,18 @@ export default function AdminProductUsage() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-6 pt-28 pb-12">
+    <div className="min-h-screen bg-background relative">
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+        <img 
+          src={abstractImage} 
+          alt="" 
+          className="absolute inset-0 w-full h-full opacity-[0.30] object-cover"
+          loading="lazy"
+          fetchPriority="low"
+        />
+        <div className="absolute inset-0 bg-background/30" />
+      </div>
+      <div className="container mx-auto px-6 pt-28 pb-12 relative z-10">
         <div className="flex items-center gap-4 mb-6">
           <Button
             variant="ghost"

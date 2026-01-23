@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { getApiUrl } from '@/lib/api';
+import { getCachedEtag, setCachedResponse, getCachedResponse } from '@/lib/api-cache';
 import Header from '@/components/Header';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import abstractImage from '@/assets/abstract-login.jpg';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,7 +23,43 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { ArrowLeft, ShieldAlert, Plus, Pencil, Trash2, Sparkles, Upload, X, Loader2 } from 'lucide-react';
+import { ArrowLeft, ShieldAlert, Plus, Pencil, Trash2, Sparkles, Upload, X, Loader2, Users, Filter, Info } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { useIsMobile } from '@/hooks/use-mobile';
+
+
+// InfoTooltip component
+const InfoTooltip = ({ infoText }: { infoText: string }) => {
+  const isMobile = useIsMobile();
+  const [open, setOpen] = useState(false);
+
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isMobile) {
+      setOpen((prev) => !prev);
+    }
+  };
+
+  return (
+    <TooltipProvider>
+      <Tooltip open={isMobile ? open : undefined} onOpenChange={isMobile ? setOpen : undefined}>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            className="inline-flex items-center"
+            onClick={handleClick}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <Info size={16} className="text-primary/70 hover:text-primary transition-colors cursor-help" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p className="max-w-xs">{infoText}</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+};
 
 interface ManagedUser {
   _id: string;
@@ -65,17 +103,23 @@ const UserManagement = () => {
   const { toast } = useToast();
 
   const [loading, setLoading] = useState(true);
+  const [userStats, setUserStats] = useState<{ total: number; admin: number; distributor: number; customer: number } | null>(null);
+  const [usersHierarchyFilter, setUsersHierarchyFilter] = useState<'all' | 'admin' | 'distributor' | 'customer'>('all');
+  const [showUsersHierarchy, setShowUsersHierarchy] = useState(false);
+  const [usersLevel, setUsersLevel] = useState<'admin' | 'distributor' | 'customer' | null>(null);
+  const [usersParentId, setUsersParentId] = useState<string | null>(null);
+  const [loadingStats, setLoadingStats] = useState(true);
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'distributor' | 'customer'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
-  
+
   // Dialog states
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<ManagedUser | null>(null);
-  
+
   // Form states
   const [formData, setFormData] = useState({
     name: '',
@@ -110,14 +154,67 @@ const UserManagement = () => {
       return;
     }
     void loadUsers();
+    void loadUserStats();
   }, [isAuthenticated, user, navigate]);
+
+  const loadUserStats = async () => {
+    if (!user?.token) return;
+    try {
+      setLoadingStats(true);
+      const params = new URLSearchParams();
+      if (usersHierarchyFilter !== 'all') {
+        params.append('level', usersHierarchyFilter);
+        if (usersParentId) params.append('parentId', usersParentId);
+      }
+
+      const url = getApiUrl(`/api/admin/users/stats?${params.toString()}`);
+      const headers: HeadersInit = {
+        Authorization: `Bearer ${user.token}`,
+      };
+
+      const cachedEtag = getCachedEtag(url);
+      if (cachedEtag) {
+        headers['If-None-Match'] = cachedEtag;
+      }
+
+      const res = await fetch(url, { headers });
+
+      if (res.status === 304) {
+        const cached = getCachedResponse(url);
+        if (cached) {
+          setUserStats(cached);
+        }
+        setLoadingStats(false);
+        return;
+      }
+
+      if (!res.ok) throw new Error('Failed to load user stats');
+      const data = await res.json();
+
+      const etag = res.headers.get('ETag');
+      if (etag) {
+        setCachedResponse(url, etag, data);
+      }
+
+      setUserStats(data);
+    } catch (error) {
+      console.error('Failed to load user stats', error);
+    } finally {
+      setLoadingStats(false);
+    }
+  };
+
+  // Reload stats when filter changes
+  useEffect(() => {
+    void loadUserStats();
+  }, [usersHierarchyFilter, usersParentId]);
 
   // Reload users when filters change (with debounce for search)
   useEffect(() => {
     if (!isAuthenticated || (!user?.isSuperAdmin && user?.role !== 'admin' && user?.role !== 'distributor') || !user?.token) {
       return;
     }
-    
+
     setLoading(true);
     const timeoutId = setTimeout(() => {
       void loadUsers();
@@ -127,25 +224,21 @@ const UserManagement = () => {
   }, [search, roleFilter, statusFilter, user?.token]);
 
   const loadUsers = async () => {
+    if (!user?.token) return;
     try {
       const params = new URLSearchParams();
       if (search) params.append('search', search);
       if (roleFilter !== 'all') params.append('role', roleFilter);
       if (statusFilter !== 'all') params.append('status', statusFilter);
 
-      const res = await fetch(getApiUrl(`/api/admin/users?${params.toString()}`), {
-        headers: {
-          Authorization: `Bearer ${user?.token}`,
-        },
-      });
-      if (!res.ok) throw new Error('Failed to load users');
-      const data = await res.json();
+      const { cachedFetch } = await import('@/lib/cached-fetch');
+      const data = await cachedFetch(`/api/admin/users?${params.toString()}`, user.token);
       setUsers(data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Load users error:', error);
       toast({
         title: 'Failed to load users',
-        description: 'Please try again.',
+        description: error.message || 'Please try again.',
         variant: 'destructive',
       });
     } finally {
@@ -308,12 +401,12 @@ const UserManagement = () => {
           Authorization: `Bearer ${user?.token}`,
         },
       });
-      
+
       if (!res.ok) {
         const error = await res.json();
         throw new Error(error.message || 'Failed to force reset');
       }
-      
+
       toast({
         title: 'Password reset required',
         description: 'The user will be required to reset their password on next login.',
@@ -514,14 +607,14 @@ const UserManagement = () => {
       uid: userData.uid || '',
       mobileNo: userData.mobileNo || '',
       businessName: userData.businessName || '',
-      address: userData.address || {
-        address1: '',
-        address2: '',
-        city: '',
-        district: '',
-        pin: '',
-        state: '',
-        country: '',
+      address: {
+        address1: userData.address?.address1 || '',
+        address2: userData.address?.address2 || '',
+        city: userData.address?.city || '',
+        district: userData.address?.district || '',
+        pin: userData.address?.pin || '',
+        state: userData.address?.state || '',
+        country: userData.address?.country || '',
       },
       registrationNo: userData.registrationNo || '',
       registrationCopyUrl: userData.registrationCopyUrl || '',
@@ -838,27 +931,110 @@ const UserManagement = () => {
   );
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background relative">
+      {/* Fixed abstract background */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+        <img
+          src={abstractImage}
+          alt=""
+          className="absolute inset-0 w-full h-full opacity-[0.30] object-cover"
+          loading="lazy"
+          fetchPriority="low"
+        />
+        <div className="absolute inset-0 bg-background/30" />
+      </div>
       <Header />
-      <main className="container mx-auto px-6 pt-28 pb-12 max-w-6xl">
-        <div className="flex items-center gap-4 mb-8">
+      <main className="container mx-auto px-4 md:px-6 pt-24 md:pt-28 pb-12 max-w-6xl relative z-10">
+        <div className="flex items-center gap-4 mb-4 md:mb-8">
           <Button
             variant="ghost"
             size="icon"
             onClick={() => navigate('/dashboard')}
-            className="rounded-full"
+            className="rounded-full shrink-0"
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h1 className="font-serif text-3xl font-medium mb-1">User Management</h1>
-            <p className="text-muted-foreground">Add, edit, or remove user accounts</p>
+            <h1 className="font-sans text-2xl md:text-4xl font-bold mb-1 tracking-tight">User Management</h1>
+            <p className="text-sm md:text-base font-medium text-slate-600 dark:text-slate-400">Add, edit, or remove user accounts</p>
           </div>
         </div>
 
-        <Card className="mb-6">
+        {/* Total Users Stats Card */}
+        <div className="grid md:grid-cols-4 gap-4 mb-6">
+          <Card className="hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 bg-white/95 dark:bg-black/95 backdrop-blur-xl border border-white/20 shadow-xl group">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-base font-semibold text-foreground">Total Users</CardTitle>
+                <InfoTooltip infoText="View total users with filters for hierarchy" />
+              </div>
+              <div className="text-primary hover:text-primary transition-colors flex items-center gap-2">
+                <Users size={20} className="text-primary hover:scale-110 transition-transform" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <div className="flex flex-col gap-2 text-xs">
+                  <div className="flex items-center gap-2">
+                    <Filter size={14} className="text-foreground" />
+                    <Label className="text-xs font-medium">Hierarchy:</Label>
+                    <Select
+                      value={usersHierarchyFilter}
+                      onValueChange={(value: 'all' | 'admin' | 'distributor' | 'customer') => {
+                        setUsersHierarchyFilter(value);
+                        if (value === 'all') {
+                          setShowUsersHierarchy(false);
+                          setUsersLevel(null);
+                          setUsersParentId(null);
+                        } else {
+                          setShowUsersHierarchy(true);
+                          setUsersLevel(value);
+                          setUsersParentId(null);
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-7 text-xs flex-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All</SelectItem>
+                        {user?.isSuperAdmin && <SelectItem value="admin">By Admin</SelectItem>}
+                        {user?.role !== 'distributor' && <SelectItem value="distributor">By Distributor</SelectItem>}
+                        <SelectItem value="customer">By Customer</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <p className="text-2xl md:text-3xl font-sans font-bold mb-1 text-primary">
+                  {loadingStats ? (
+                    <Loader2 className="h-7 w-7 animate-spin text-primary inline-block" />
+                  ) : (
+                    (() => {
+                      if (usersHierarchyFilter === 'all') {
+                        return userStats?.total.toLocaleString() || '0';
+                      } else if (usersHierarchyFilter === 'admin') {
+                        return userStats?.admin.toLocaleString() || '0';
+                      } else if (usersHierarchyFilter === 'distributor') {
+                        return userStats?.distributor.toLocaleString() || '0';
+                      } else if (usersHierarchyFilter === 'customer') {
+                        return userStats?.customer.toLocaleString() || '0';
+                      }
+                      return userStats?.total.toLocaleString() || '0';
+                    })()
+                  )}
+                </p>
+                <CardDescription className="text-sm font-medium text-foreground/80">
+                  All active accounts
+                </CardDescription>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card className="mb-6 bg-white/95 dark:bg-black/95 backdrop-blur-xl border border-white/20 shadow-xl">
           <CardHeader>
-            <CardTitle>Filters</CardTitle>
+            <CardTitle className="text-base font-semibold text-foreground">Filters</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col md:flex-row gap-4">
             <div className="flex-1 space-y-1">
@@ -883,8 +1059,8 @@ const UserManagement = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="distributor">Distributor</SelectItem>
+                  {user?.isSuperAdmin && <SelectItem value="admin">Admin</SelectItem>}
+                  {user?.role !== 'distributor' && <SelectItem value="distributor">Distributor</SelectItem>}
                   <SelectItem value="customer">Customer</SelectItem>
                 </SelectContent>
               </Select>
@@ -910,10 +1086,10 @@ const UserManagement = () => {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-white/95 dark:bg-black/95 backdrop-blur-xl border border-white/20 shadow-xl">
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle>Users</CardTitle>
+              <CardTitle className="text-base font-semibold text-foreground">Users</CardTitle>
               <Button onClick={() => {
                 resetForm();
                 setAddDialogOpen(true);
@@ -930,125 +1106,267 @@ const UserManagement = () => {
                 <p className="text-sm text-muted-foreground">Loading users...</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="border-b border-border text-xs uppercase text-muted-foreground">
-                    <tr className="text-left">
-                      <th className="py-2 pr-4 font-medium">Name</th>
-                      <th className="py-2 pr-4 font-medium">Email</th>
-                      <th className="py-2 pr-4 font-medium">Associated With</th>
-                      <th className="py-2 pr-4 font-medium">Role</th>
-                      <th className="py-2 pr-4 font-medium">Status</th>
-                      <th className="py-2 pr-4 font-medium">Last login</th>
-                      <th className="py-2 pr-4 font-medium text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredUsers.map((u) => (
-                      <tr key={u._id} className="border-b border-border/60 last:border-0">
-                        <td className="py-2 pr-4">
-                          <div className="flex flex-col">
-                            <span className="font-medium">{u.name}</span>
-                            <span className="text-xs text-muted-foreground">
-                              {u.role === 'super-admin' ? 'Super Admin' : u.role}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="py-2 pr-4">{u.email}</td>
-                        <td className="py-2 pr-4">
-                          {u.parentId ? (
+              <>
+                {/* Desktop Table View */}
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="border-b border-border text-xs uppercase text-muted-foreground">
+                      <tr className="text-left">
+                        <th className="py-2 pr-4 font-medium">Name</th>
+                        <th className="py-2 pr-4 font-medium">Email</th>
+                        <th className="py-2 pr-4 font-medium">Associated With</th>
+                        <th className="py-2 pr-4 font-medium">Role</th>
+                        <th className="py-2 pr-4 font-medium">Status</th>
+                        <th className="py-2 pr-4 font-medium">Last login</th>
+                        <th className="py-2 pr-4 font-medium text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredUsers.map((u) => (
+                        <tr key={u._id} className="border-b border-border/60 last:border-0">
+                          <td className="py-2 pr-4">
                             <div className="flex flex-col">
-                              <span className="text-xs font-medium">{u.parentId.name}</span>
-                              <span className="text-xs text-muted-foreground">{u.parentId.role}</span>
+                              <span className="font-medium">{u.name}</span>
+                              <span className={`text-xs font-medium ${u.role === 'super-admin' ? 'text-purple-600 dark:text-purple-400' :
+                                u.role === 'admin' ? 'text-blue-600 dark:text-blue-400' :
+                                  u.role === 'distributor' ? 'text-green-600 dark:text-green-400' :
+                                    'text-orange-600 dark:text-orange-400'
+                                }`}>
+                                {u.role === 'super-admin' ? 'Super Admin' : u.role}
+                              </span>
                             </div>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">-</span>
-                          )}
-                        </td>
-                        <td className="py-2 pr-4">
-                          {u.role === 'super-admin' ? (
-                            <span className="text-xs text-muted-foreground">Locked</span>
-                          ) : (
-                            <Select
-                              value={u.role}
-                              onValueChange={(value: 'admin' | 'distributor' | 'customer') =>
-                                handleRoleChange(u._id, value)
-                              }
-                            >
-                              <SelectTrigger className="h-8 w-32 text-xs">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="admin">Admin</SelectItem>
-                                <SelectItem value="distributor">Distributor</SelectItem>
-                                <SelectItem value="customer">Customer</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          )}
-                        </td>
-                        <td className="py-2 pr-4">
-                          <div className="flex items-center gap-2">
-                            <Switch
-                              checked={u.isActive}
-                              onCheckedChange={(checked) => handleStatusToggle(u._id, checked)}
-                              disabled={u.role === 'super-admin'}
-                            />
-                            <span className="text-xs text-muted-foreground">
-                              {u.isActive ? 'Active' : 'Inactive'}
-                            </span>
+                          </td>
+                          <td className="py-2 pr-4">{u.email}</td>
+                          <td className="py-2 pr-4">
+                            {u.parentId ? (
+                              <div className="flex flex-col">
+                                <span className="text-xs font-medium">{u.parentId.name}</span>
+                                <span className={`text-xs ${u.parentId.role === 'super-admin' ? 'text-purple-600 dark:text-purple-400' :
+                                  u.parentId.role === 'admin' ? 'text-blue-600 dark:text-blue-400' :
+                                    u.parentId.role === 'distributor' ? 'text-green-600 dark:text-green-400' :
+                                      'text-orange-600 dark:text-orange-400'
+                                  }`}>{u.parentId.role === 'super-admin' ? 'Super Admin' : u.parentId.role}</span>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">-</span>
+                            )}
+                          </td>
+                          <td className="py-2 pr-4">
+                            {u.role === 'super-admin' ? (
+                              <span className="text-xs text-muted-foreground">Locked</span>
+                            ) : (
+                              <Select
+                                value={u.role}
+                                onValueChange={(value: 'admin' | 'distributor' | 'customer') =>
+                                  handleRoleChange(u._id, value)
+                                }
+                              >
+                                <SelectTrigger className="h-8 w-32 text-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="admin">Admin</SelectItem>
+                                  <SelectItem value="distributor">Distributor</SelectItem>
+                                  <SelectItem value="customer">Customer</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            )}
+                          </td>
+                          <td className="py-2 pr-4">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Switch
+                                checked={u.isActive}
+                                onCheckedChange={(checked) => handleStatusToggle(u._id, checked)}
+                                disabled={u.role === 'super-admin'}
+                              />
+                              <span className="text-xs text-muted-foreground whitespace-nowrap">
+                                {u.isActive ? 'Active' : 'Inactive'}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-2 pr-4 text-xs text-muted-foreground">
+                            {u.lastLoginAt
+                              ? new Date(u.lastLoginAt).toLocaleString()
+                              : 'Never'}
+                          </td>
+                          <td className="py-2 pr-0">
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8"
+                                disabled={u.role === 'super-admin'}
+                                onClick={() => openEditDialog(u)}
+                                title="Edit user"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8"
+                                disabled={u.role === 'super-admin'}
+                                onClick={() => openDeleteDialog(u)}
+                                title="Delete user"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8"
+                                disabled={u.role === 'super-admin'}
+                                onClick={() => handleForceReset(u._id)}
+                                title="Force password reset"
+                              >
+                                <ShieldAlert className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {filteredUsers.length === 0 && (
+                        <tr>
+                          <td colSpan={7} className="py-8 text-center text-sm text-muted-foreground">
+                            No users found.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile Card View */}
+                <div className="md:hidden space-y-3">
+                  {filteredUsers.length === 0 ? (
+                    <div className="py-8 text-center text-sm text-muted-foreground">
+                      No users found.
+                    </div>
+                  ) : (
+                    filteredUsers.map((u) => (
+                      <div key={u._id} className="border border-border/60 rounded-lg p-3 space-y-2 bg-background/50">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-col">
+                              <span className="font-medium text-sm truncate">{u.name}</span>
+                              <span className={`text-xs font-medium ${u.role === 'super-admin' ? 'text-purple-600 dark:text-purple-400' :
+                                u.role === 'admin' ? 'text-blue-600 dark:text-blue-400' :
+                                  u.role === 'distributor' ? 'text-green-600 dark:text-green-400' :
+                                    'text-orange-600 dark:text-orange-400'
+                                }`}>
+                                {u.role === 'super-admin' ? 'Super Admin' : u.role}
+                              </span>
+                            </div>
                           </div>
-                        </td>
-                        <td className="py-2 pr-4 text-xs text-muted-foreground">
-                          {u.lastLoginAt
-                            ? new Date(u.lastLoginAt).toLocaleString()
-                            : 'Never'}
-                        </td>
-                        <td className="py-2 pr-0">
-                          <div className="flex justify-end gap-2">
+                          <div className="flex gap-1 ml-2">
                             <Button
                               variant="outline"
                               size="icon"
-                              className="h-8 w-8"
+                              className="h-7 w-7"
                               disabled={u.role === 'super-admin'}
                               onClick={() => openEditDialog(u)}
                               title="Edit user"
                             >
-                              <Pencil className="h-4 w-4" />
+                              <Pencil className="h-3.5 w-3.5" />
                             </Button>
                             <Button
                               variant="outline"
                               size="icon"
-                              className="h-8 w-8"
+                              className="h-7 w-7"
                               disabled={u.role === 'super-admin'}
                               onClick={() => openDeleteDialog(u)}
                               title="Delete user"
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Trash2 className="h-3.5 w-3.5" />
                             </Button>
+                          </div>
+                        </div>
+                        <div className="space-y-1.5 text-xs">
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">Email:</span>
+                            <span className="text-right truncate ml-2 flex-1">{u.email}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">Associated With:</span>
+                            <span className="text-right">
+                              {u.parentId ? (
+                                <div className="flex flex-col items-end">
+                                  <span className="font-medium">{u.parentId.name}</span>
+                                  <span className={`text-xs ${u.parentId.role === 'super-admin' ? 'text-purple-600 dark:text-purple-400' :
+                                    u.parentId.role === 'admin' ? 'text-blue-600 dark:text-blue-400' :
+                                      u.parentId.role === 'distributor' ? 'text-green-600 dark:text-green-400' :
+                                        'text-orange-600 dark:text-orange-400'
+                                    }`}>{u.parentId.role === 'super-admin' ? 'Super Admin' : u.parentId.role}</span>
+                                </div>
+                              ) : (
+                                <span className="text-muted-foreground">-</span>
+                              )}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">Role:</span>
+                            <div>
+                              {u.role === 'super-admin' ? (
+                                <span className="text-muted-foreground">Locked</span>
+                              ) : (
+                                <Select
+                                  value={u.role}
+                                  onValueChange={(value: 'admin' | 'distributor' | 'customer') =>
+                                    handleRoleChange(u._id, value)
+                                  }
+                                >
+                                  <SelectTrigger className="h-7 w-24 text-xs">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="admin">Admin</SelectItem>
+                                    <SelectItem value="distributor">Distributor</SelectItem>
+                                    <SelectItem value="customer">Customer</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">Status:</span>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <Switch
+                                checked={u.isActive}
+                                onCheckedChange={(checked) => handleStatusToggle(u._id, checked)}
+                                disabled={u.role === 'super-admin'}
+                              />
+                              <span className="text-muted-foreground text-xs whitespace-nowrap">
+                                {u.isActive ? 'Active' : 'Inactive'}
+                              </span>
+                            </div>
+                          </div>
+                          {u.lastLoginAt && (
+                            <div className="flex items-center justify-between">
+                              <span className="text-muted-foreground">Last login:</span>
+                              <span className="text-xs text-muted-foreground">
+                                {new Date(u.lastLoginAt).toLocaleDateString()}
+                              </span>
+                            </div>
+                          )}
+                          <div className="flex justify-end pt-1">
                             <Button
                               variant="outline"
-                              size="icon"
-                              className="h-8 w-8"
+                              size="sm"
+                              className="h-7 text-xs"
                               disabled={u.role === 'super-admin'}
                               onClick={() => handleForceReset(u._id)}
                               title="Force password reset"
                             >
-                              <ShieldAlert className="h-4 w-4" />
+                              <ShieldAlert className="h-3 w-3 mr-1" />
+                              Reset Password
                             </Button>
                           </div>
-                        </td>
-                      </tr>
-                    ))}
-                    {filteredUsers.length === 0 && (
-                      <tr>
-                        <td colSpan={7} className="py-8 text-center text-sm text-muted-foreground">
-                          No users found.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </>
             )}
           </CardContent>
         </Card>

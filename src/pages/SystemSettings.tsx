@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { getApiUrl } from '@/lib/api';
 import Header from '@/components/Header';
+import abstractImage from '@/assets/abstract-login.jpg';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -88,6 +89,8 @@ const SystemSettings = () => {
   
   // Ref to track previous settings for comparison
   const prevSettingsRef = useRef<any>(null);
+  // Ref to track previous pending change status to avoid showing duplicate notifications
+  const prevPendingStatusRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!isAuthenticated || (!user?.isSuperAdmin && user?.role !== 'admin')) {
@@ -278,12 +281,8 @@ const SystemSettings = () => {
   const loadSettings = async () => {
     if (!user?.token) return;
     try {
-      const res = await fetch(getApiUrl('/api/system-settings'), {
-        headers: { Authorization: `Bearer ${user.token}` },
-        cache: 'no-store', // Prevent caching
-      });
-      if (!res.ok) throw new Error('Failed to load settings');
-      const data = await res.json();
+      const { cachedFetch } = await import('@/lib/cached-fetch');
+      const data = await cachedFetch('/api/system-settings', user.token);
       
       // Preserve existing admin settings if they exist, otherwise use defaults
       const existingAdmin = settings.fieldRequirements?.admin || {};
@@ -365,26 +364,32 @@ const SystemSettings = () => {
       });
       if (res.ok) {
         const data = await res.json();
+        const currentStatus = data?.status || null;
+        const previousStatus = prevPendingStatusRef.current;
+        
         // Only set as pending if status is actually pending
         if (data && data.status === 'pending') {
           setPendingChange(data);
+          prevPendingStatusRef.current = 'pending';
         } else {
           setPendingChange(null);
-          // If it was approved, reload settings to reflect changes
-          if (data && data.status === 'approved') {
+          // Only show toast if status changed from pending to approved/rejected (not on initial load)
+          if (data && data.status === 'approved' && previousStatus === 'pending') {
             await loadSettings();
             toast({
               title: 'Request approved',
               description: 'Your settings change request has been approved and applied.',
               variant: 'success',
             });
-          } else if (data && data.status === 'rejected') {
+          } else if (data && data.status === 'rejected' && previousStatus === 'pending') {
             toast({
               title: 'Request rejected',
               description: data.rejectionReason || 'Your settings change request has been rejected.',
               variant: 'destructive',
             });
           }
+          // Update ref to current status (or null if no data)
+          prevPendingStatusRef.current = currentStatus;
         }
       }
     } catch (error) {
@@ -636,9 +641,22 @@ const SystemSettings = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background relative">
+      {/* Abstract background image with dark overlay */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+        <img 
+          src={abstractImage} 
+          alt="" 
+          className="absolute inset-0 w-full h-full opacity-[0.30] object-cover"
+          loading="lazy"
+          fetchPriority="low"
+        />
+        {/* Dark overlay for better contrast */}
+        <div className="absolute inset-0 bg-background/30" />
+      </div>
+      
       <Header />
-      <main className="container mx-auto px-6 pt-28 pb-12 max-w-4xl">
+      <main className="container mx-auto px-6 pt-28 pb-12 max-w-4xl relative z-10">
         <div className="flex items-center gap-4 mb-8">
             <Button
               variant="ghost"
@@ -649,8 +667,8 @@ const SystemSettings = () => {
               <ArrowLeft className="h-4 w-4" />
             </Button>
           <div>
-            <h1 className="font-serif text-3xl font-medium mb-1">System Settings</h1>
-            <p className="text-muted-foreground">
+            <h1 className="font-serif text-3xl font-bold mb-1 text-foreground">System Settings</h1>
+            <p className="text-base font-medium text-foreground/90">
               {user?.isSuperAdmin ? 'Configure global system preferences' : ''}
             </p>
           </div>
@@ -659,9 +677,9 @@ const SystemSettings = () => {
         <div className="space-y-6">
           {/* Global Configuration - Super Admin Only */}
           {user?.isSuperAdmin && (
-            <Card>
+            <Card className="bg-gradient-to-br from-gray-200 to-gray-400 dark:from-gray-700 dark:to-gray-900 backdrop-blur-md border border-black/30 dark:border-black/50 shadow-sm">
               <CardHeader>
-                <CardTitle>Global Configuration</CardTitle>
+                <CardTitle className="text-base font-semibold text-foreground">Global Configuration</CardTitle>
                 <CardDescription>Email settings</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -1003,9 +1021,9 @@ const SystemSettings = () => {
 
           {/* Field Requirements - Admin can edit distributor and customer, Super Admin can edit all */}
           {(user?.isSuperAdmin || user?.role === 'admin') && (
-            <Card>
+            <Card className="bg-gradient-to-br from-gray-200 to-gray-400 dark:from-gray-700 dark:to-gray-900 backdrop-blur-md border border-black/30 dark:border-black/50 shadow-sm">
               <CardHeader>
-                <CardTitle>Field Requirements</CardTitle>
+                <CardTitle className="text-base font-semibold text-foreground">Field Requirements</CardTitle>
                 <CardDescription>
                   {user?.isSuperAdmin 
                     ? 'Configure which fields are mandatory for each role during user creation'

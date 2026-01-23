@@ -14,7 +14,7 @@ const Login = () => {
   const navigate = useNavigate();
   const { login, isAuthenticated } = useAuth();
   const { toast } = useToast();
-  
+
   // Redirect to dashboard if already logged in
   useEffect(() => {
     if (isAuthenticated) {
@@ -41,14 +41,14 @@ const Login = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    
+
     if (!email || !password || !role) {
       setError('Please fill in all fields');
       return;
     }
 
     setIsLoading(true);
-    
+
     try {
       await login(email, password, role);
       toast({
@@ -168,51 +168,62 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex">
+    <div className="min-h-screen flex w-full relative">
+      {/* Background for the whole page (visible on left) */}
+      <div className="fixed inset-0 pointer-events-none z-0">
+        <img
+          src={abstractImage}
+          alt=""
+          className="w-full h-full object-cover opacity-[0.30]"
+          fetchPriority="high"
+        />
+        <div className="absolute inset-0 bg-background/30" />
+      </div>
+
       {/* Left side - Form */}
-      <div className="flex-1 flex flex-col justify-center px-8 md:px-16 lg:px-24">
-        <div className="max-w-sm w-full mx-auto animate-fade-in">
-          <Link 
-            to="/" 
-            className="absolute top-6 left-6 w-10 h-10 rounded-full border border-border bg-background flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground transition-colors"
-          >
-            <ArrowLeft size={18} />
-          </Link>
-          
-          <Link 
-            to="/" 
-            className="font-serif text-xl font-medium tracking-tight inline-block mb-12 hover:opacity-70 transition-opacity"
+      <div className="flex-1 flex flex-col justify-center items-center p-4 md:px-8 relative z-10">
+        <Link
+          to="/"
+          className="absolute top-6 left-6 w-10 h-10 rounded-full border border-white/20 bg-white/50 backdrop-blur-sm flex items-center justify-center text-foreground hover:bg-white/80 transition-colors"
+        >
+          <ArrowLeft size={18} />
+        </Link>
+
+        <div className="max-w-[400px] w-full bg-white/95 dark:bg-black/95 backdrop-blur-xl rounded-2xl p-8 border border-white/20 shadow-2xl animate-fade-in">
+          <Link
+            to="/"
+            className="font-sans text-xl font-bold tracking-tight inline-block mb-8 hover:opacity-70 transition-opacity text-foreground"
           >
             Vendofy
           </Link>
-          
-          <h1 className="font-serif text-3xl font-medium mb-2">Welcome back</h1>
-          <p className="text-muted-foreground mb-8">Sign in to your account</p>
+
+          <h1 className="font-sans text-3xl font-bold mb-2 text-gray-900 dark:text-white">Welcome back</h1>
+          <p className="text-gray-600 dark:text-gray-300 mb-8 font-medium">Sign in to your account</p>
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-sm">Email</Label>
+              <Label htmlFor="email" className="text-sm font-medium text-gray-700 dark:text-gray-300">Email</Label>
               <Input
                 id="email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Enter email"
-                className="h-12"
+                className="h-12 bg-white/50 border-gray-200 focus:border-primary focus:ring-primary/20 dark:bg-black/50 dark:border-white/10"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-sm">Password</Label>
+              <Label htmlFor="password" className="text-sm font-medium text-gray-700 dark:text-gray-300">Password</Label>
               <div className="relative">
-              <Input
-                id="password"
+                <Input
+                  id="password"
                   type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter password"
-                  className="h-12 pr-10"
-              />
+                  className="h-12 pr-10 bg-white/50 border-gray-200 focus:border-primary focus:ring-primary/20 dark:bg-black/50 dark:border-white/10"
+                />
                 <button
                   type="button"
                   onClick={() => setShowPassword((prev) => !prev)}
@@ -225,9 +236,9 @@ const Login = () => {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-sm">Select your role</Label>
+              <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">Select your role</Label>
               <Select value={role} onValueChange={(value) => setRole(value as UserRole)}>
-                <SelectTrigger className="h-12">
+                <SelectTrigger className="h-12 bg-white/50 border-gray-200 dark:bg-black/50 dark:border-white/10">
                   <SelectValue placeholder="Select a role" />
                 </SelectTrigger>
                 <SelectContent>
@@ -239,12 +250,12 @@ const Login = () => {
             </div>
 
             {error && (
-              <p className="text-sm text-destructive">{error}</p>
+              <p className="text-sm text-destructive font-medium">{error}</p>
             )}
 
-            <Button 
-              type="submit" 
-              className="w-full h-12"
+            <Button
+              type="submit"
+              className="w-full h-12 text-base font-semibold shadow-lg hover:shadow-xl transition-all"
               disabled={isLoading}
             >
               {isLoading ? 'Signing in...' : 'Sign in'}
@@ -259,7 +270,7 @@ const Login = () => {
                   setFpEmail(email);
                   setFpError('');
                 }}
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors underline-offset-4 hover:underline"
+                className="text-sm text-primary font-medium hover:text-primary/80 transition-colors underline-offset-4 hover:underline"
               >
                 Forgot password?
               </button>
@@ -269,17 +280,12 @@ const Login = () => {
       </div>
 
       {/* Right side - Visual */}
-      <div className="hidden lg:flex flex-1 bg-card items-center justify-center border-l border-border relative overflow-hidden">
-        <img 
-          src={abstractImage} 
-          alt="Abstract design" 
-          className="absolute inset-0 w-full h-full object-cover opacity-20"
-        />
-        <div className="text-center px-12 animate-slide-up relative z-10">
-          <p className="text-sm uppercase tracking-[0.3em] text-muted-foreground mb-4">
+      <div className="hidden lg:flex flex-1 bg-white/10 backdrop-blur-sm items-center justify-center border-l border-white/20 relative z-10">
+        <div className="text-center px-12 animate-slide-up">
+          <p className="text-sm uppercase tracking-[0.3em] text-gray-700 dark:text-gray-300 mb-4 font-bold">
             One platform
           </p>
-          <h2 className="font-serif text-4xl font-medium leading-tight max-w-md">
+          <h2 className="font-sans text-4xl font-bold leading-tight max-w-md text-gray-900 dark:text-white">
             Three perspectives, unified experience
           </h2>
         </div>

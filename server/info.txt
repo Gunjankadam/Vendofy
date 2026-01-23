@@ -1,0 +1,8 @@
+GOOGLE
+mail - vendofy.service@gmail.com
+pass - V3nd0fy!A9#rQ2
+
+SUPERADMIN
+mail - vendofy.service@gmail.com
+pass - V3nd0fy!A9rQ2
+

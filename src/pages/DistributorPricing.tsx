@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getApiUrl } from '@/lib/api';
 import Header from '@/components/Header';
+import abstractImage from '@/assets/abstract-login.jpg';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -74,38 +75,18 @@ const DistributorPricing = () => {
     if (!user?.token) return;
     try {
       setLoading(true);
-      
-      // Load pricing
-      const pricingRes = await fetch(getApiUrl('/api/distributor/customer-pricing'), {
-        headers: {
-          Authorization: `Bearer ${user.token}`,
-        },
-      });
-      if (!pricingRes.ok) throw new Error('Failed to load pricing');
-      const pricingData = await pricingRes.json();
-      setPricing(pricingData);
+      const { cachedFetch } = await import('@/lib/cached-fetch');
 
-      // Load customers (distributor's customers)
-      const customersRes = await fetch(getApiUrl('/api/distributor/customers'), {
-        headers: {
-          Authorization: `Bearer ${user.token}`,
-        },
-      });
-      if (customersRes.ok) {
-        const customersData = await customersRes.json();
-        setCustomers(customersData || []);
-      }
+      // Load all data in parallel with caching
+      const [pricingData, customersData, productsData] = await Promise.all([
+        cachedFetch('/api/distributor/customer-pricing', user.token).catch(() => []),
+        cachedFetch('/api/distributor/customers', user.token).catch(() => []),
+        cachedFetch('/api/distributor/products', user.token).catch(() => []),
+      ]);
 
-      // Load products (products that admin has used for this distributor)
-      const productsRes = await fetch(getApiUrl('/api/distributor/products'), {
-        headers: {
-          Authorization: `Bearer ${user.token}`,
-        },
-      });
-      if (productsRes.ok) {
-        const productsData = await productsRes.json();
-        setProducts(productsData || []);
-      }
+      setPricing(pricingData || []);
+      setCustomers(customersData || []);
+      setProducts(productsData || []);
     } catch (error: any) {
       console.error('Load data error:', error);
       toast({
@@ -218,9 +199,19 @@ const DistributorPricing = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background relative">
+        <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+          <img
+            src={abstractImage}
+            alt=""
+            className="absolute inset-0 w-full h-full opacity-[0.30] object-cover"
+            loading="lazy"
+            fetchPriority="low"
+          />
+          <div className="absolute inset-0 bg-white/95 dark:bg-black/95 backdrop-blur-3xl" />
+        </div>
         <Header />
-        <main className="container mx-auto px-6 pt-28 pb-12">
+        <main className="container mx-auto px-4 md:px-6 pt-24 md:pt-28 pb-12 relative z-10">
           <div className="flex items-center justify-center min-h-[60vh]">
             <div className="flex flex-col items-center gap-4">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -233,9 +224,19 @@ const DistributorPricing = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background relative">
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+        <img
+          src={abstractImage}
+          alt=""
+          className="absolute inset-0 w-full h-full opacity-[0.30] object-cover"
+          loading="lazy"
+          fetchPriority="low"
+        />
+        <div className="absolute inset-0 bg-white/95 dark:bg-black/95 backdrop-blur-3xl" />
+      </div>
       <Header />
-      <main className="container mx-auto px-6 pt-28 pb-12">
+      <main className="container mx-auto px-4 md:px-6 pt-24 md:pt-28 pb-12 relative z-10">
         <Button
           variant="ghost"
           size="icon"
@@ -245,24 +246,24 @@ const DistributorPricing = () => {
           <ArrowLeft className="h-4 w-4" />
         </Button>
 
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
           <div>
-            <h1 className="font-serif text-3xl font-medium mb-2 flex items-center gap-2">
-              <DollarSign className="h-8 w-8" />
+            <h1 className="font-sans text-2xl md:text-4xl font-bold mb-1 md:mb-2 flex items-center gap-2 tracking-tight">
+              <DollarSign className="h-6 w-6 md:h-8 md:w-8 text-primary shrink-0" />
               Customer Pricing Management
             </h1>
-            <p className="text-muted-foreground">Set custom prices for your customers</p>
+            <p className="text-slate-600 dark:text-slate-400 font-medium text-sm md:text-base">Set custom prices for your customers</p>
           </div>
-          <Button onClick={handleAdd}>
+          <Button onClick={handleAdd} className="w-full md:w-auto">
             <Plus className="mr-2 h-4 w-4" />
             Add Custom Price
           </Button>
         </div>
 
         {pricing.length === 0 ? (
-          <Card>
+          <Card className="bg-white/95 dark:bg-black/95 backdrop-blur-xl border border-white/20 shadow-xl">
             <CardContent className="py-12 text-center">
-              <p className="text-muted-foreground mb-4">No custom pricing set yet.</p>
+              <p className="text-gray-600 dark:text-gray-400 mb-4 font-medium">No custom pricing set yet.</p>
               <Button onClick={handleAdd}>
                 <Plus className="mr-2 h-4 w-4" />
                 Add Custom Price
@@ -272,12 +273,12 @@ const DistributorPricing = () => {
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
             {pricing.map((item) => (
-              <Card key={item._id} className="hover:shadow-md transition-shadow">
+              <Card key={item._id} className="hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 bg-white/95 dark:bg-black/95 backdrop-blur-xl border border-white/20 shadow-xl group">
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <CardTitle className="text-lg">{item.productId.name}</CardTitle>
-                      <CardDescription className="mt-1">
+                      <CardTitle className="text-lg font-bold">{item.productId.name}</CardTitle>
+                      <CardDescription className="mt-1 text-gray-600 dark:text-gray-400 font-medium">
                         {item.customerId.name}
                       </CardDescription>
                     </div>
@@ -302,14 +303,14 @@ const DistributorPricing = () => {
                 <CardContent>
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">Base Price:</span>
-                      <span className="text-sm line-through text-muted-foreground">
+                      <span className="text-sm text-gray-600 dark:text-gray-400">Base Price:</span>
+                      <span className="text-sm line-through text-gray-600 dark:text-gray-400">
                         ₹{item.productId.price.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium">Custom Price:</span>
-                      <span className="text-lg font-semibold text-primary">
+                      <span className="text-sm font-bold">Custom Price:</span>
+                      <span className="text-xl font-bold text-primary">
                         ₹{item.customPrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                       </span>
                     </div>
@@ -428,7 +429,7 @@ const DistributorPricing = () => {
             <AlertDialogHeader>
               <AlertDialogTitle>Delete Custom Price</AlertDialogTitle>
               <AlertDialogDescription>
-                Are you sure you want to delete the custom price for {selectedPricing?.productId.name} for customer {selectedPricing?.customerId.name}? 
+                Are you sure you want to delete the custom price for {selectedPricing?.productId.name} for customer {selectedPricing?.customerId.name}?
                 The customer will see the base price instead.
               </AlertDialogDescription>
             </AlertDialogHeader>

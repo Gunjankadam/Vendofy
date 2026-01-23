@@ -14,6 +14,7 @@ interface User {
   avatarUrl?: string;
   mustChangePassword?: boolean;
   uid?: string;
+  businessName?: string;
 }
 
 interface AuthContextType {
@@ -27,9 +28,14 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  // Optimize initial state - use lazy initialization
   const [user, setUser] = useState<User | null>(() => {
-    const stored = localStorage.getItem('user');
-    return stored ? JSON.parse(stored) : null;
+    try {
+      const stored = localStorage.getItem('user');
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
   });
   const logoutTimerRef = useRef<number | null>(null);
 
@@ -56,7 +62,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (user?.expiresAt) {
       scheduleLogout(user.expiresAt);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const login = async (email: string, password: string, role: UserRole) => {
@@ -85,8 +91,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       avatarUrl: data.avatarUrl,
       mustChangePassword: data.mustChangePassword || false,
       uid: data.uid,
+      businessName: data.businessName,
     };
-    
+
     setUser(loggedInUser);
     localStorage.setItem('user', JSON.stringify(loggedInUser));
     scheduleLogout(data.expiresAt);

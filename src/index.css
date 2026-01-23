@@ -2,11 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
+/* Fonts are loaded via HTML preload for better performance */
 
 @layer base {
   :root {
-    --background: 40 20% 98%;
+    --background: 40 15% 90%;
     --foreground: 30 10% 12%;
 
     --card: 40 15% 96%;
@@ -34,7 +34,7 @@
     --input: 35 10% 88%;
     --ring: 30 10% 25%;
 
-    --radius: 0.25rem;
+    --radius: 0.75rem;
 
     --sidebar-background: 40 15% 96%;
     --sidebar-foreground: 30 10% 25%;
@@ -48,7 +48,7 @@
     /* Custom tokens */
     --font-serif: 'Playfair Display', Georgia, serif;
     --font-sans: 'Inter', system-ui, sans-serif;
-    
+
     --transition-smooth: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
@@ -100,10 +100,24 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-family: var(--font-sans);
+    background-image:
+      radial-gradient(at 0% 0%, hsla(30, 20%, 70%, 0.4) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, hsla(40, 20%, 65%, 0.4) 0px, transparent 50%);
   }
 
-  h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-serif);
+  .dark body {
+    background-image:
+      radial-gradient(at 0% 0%, hsla(30, 20%, 12%, 0.6) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, hsla(30, 20%, 12%, 0.6) 0px, transparent 50%);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-sans);
     @apply tracking-tight;
   }
 }
@@ -129,6 +143,7 @@
     from {
       opacity: 0;
     }
+
     to {
       opacity: 1;
     }
@@ -139,6 +154,7 @@
       opacity: 0;
       transform: translateY(20px);
     }
+
     to {
       opacity: 1;
       transform: translateY(0);
@@ -150,6 +166,7 @@
       opacity: 0;
       transform: translateY(-10px);
     }
+
     to {
       opacity: 1;
       transform: translateY(0);

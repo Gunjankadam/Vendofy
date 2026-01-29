@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import Header from '@/components/Header';
-import abstractImage from '@/assets/abstract-login.jpg';
 import { getApiUrl } from '@/lib/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -102,7 +101,7 @@ const CustomerCheckout = () => {
       }
 
       const order = await res.json();
-      
+
       // Clear cart
       localStorage.removeItem('customerCart');
       setCart([]);
@@ -130,17 +129,7 @@ const CustomerCheckout = () => {
 
   if (cart.length === 0) {
     return (
-      <div className="min-h-screen bg-background relative">
-        <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-          <img 
-            src={abstractImage} 
-            alt="" 
-            className="absolute inset-0 w-full h-full opacity-[0.30] object-cover"
-            loading="lazy"
-            fetchPriority="low"
-          />
-          <div className="absolute inset-0 bg-background/30" />
-        </div>
+      <div className="min-h-screen bg-transparent relative">
         <Header />
         <main className="container mx-auto px-6 pt-28 pb-12 relative z-10">
           <div className="text-center py-12">
@@ -155,17 +144,7 @@ const CustomerCheckout = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background relative">
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        <img 
-          src={abstractImage} 
-          alt="" 
-          className="absolute inset-0 w-full h-full opacity-[0.30] object-cover"
-          loading="lazy"
-          fetchPriority="low"
-        />
-        <div className="absolute inset-0 bg-background/30" />
-      </div>
+    <div className="min-h-screen bg-transparent relative">
       <Header />
       <main className="container mx-auto px-6 pt-28 pb-12 max-w-4xl relative z-10">
         <Button

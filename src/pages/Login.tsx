@@ -9,7 +9,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import abstractImage from '@/assets/abstract-login.jpg';
 const Login = () => {
   const navigate = useNavigate();
   const { login, isAuthenticated } = useAuth();
@@ -168,17 +167,7 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex w-full relative">
-      {/* Background for the whole page (visible on left) */}
-      <div className="fixed inset-0 pointer-events-none z-0">
-        <img
-          src={abstractImage}
-          alt=""
-          className="w-full h-full object-cover opacity-[0.30]"
-          fetchPriority="high"
-        />
-        <div className="absolute inset-0 bg-background/30" />
-      </div>
+    <div className="min-h-screen flex w-full relative bg-transparent">
 
       {/* Left side - Form */}
       <div className="flex-1 flex flex-col justify-center items-center p-4 md:px-8 relative z-10">

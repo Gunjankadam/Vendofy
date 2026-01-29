@@ -5,6 +5,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { DeferredToaster } from "@/components/DeferredToaster";
+import GlobalBackground from "@/components/GlobalBackground";
 
 // Lazy load all route components for code splitting
 const Index = lazy(() => import("./pages/Index"));
@@ -54,6 +55,7 @@ const App = () => {
         <AuthProvider>
           <DeferredToaster />
           <BrowserRouter>
+            <GlobalBackground />
             <Suspense fallback={<LoadingSpinner />}>
               <Routes>
                 <Route path="/" element={<Index />} />

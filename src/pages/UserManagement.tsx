@@ -5,7 +5,6 @@ import { useToast } from '@/hooks/use-toast';
 import { getApiUrl } from '@/lib/api';
 import { getCachedEtag, setCachedResponse, getCachedResponse } from '@/lib/api-cache';
 import Header from '@/components/Header';
-import abstractImage from '@/assets/abstract-login.jpg';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -931,18 +930,7 @@ const UserManagement = () => {
   );
 
   return (
-    <div className="min-h-screen bg-background relative">
-      {/* Fixed abstract background */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        <img
-          src={abstractImage}
-          alt=""
-          className="absolute inset-0 w-full h-full opacity-[0.30] object-cover"
-          loading="lazy"
-          fetchPriority="low"
-        />
-        <div className="absolute inset-0 bg-background/30" />
-      </div>
+    <div className="min-h-screen bg-transparent relative">
       <Header />
       <main className="container mx-auto px-4 md:px-6 pt-24 md:pt-28 pb-12 max-w-6xl relative z-10">
         <div className="flex items-center gap-4 mb-4 md:mb-8">

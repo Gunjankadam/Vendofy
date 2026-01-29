@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { getApiUrl } from "../lib/api";
 import { useNavigate } from "react-router-dom";
-import abstractImage from "../assets/abstract-login.jpg";
 import { ArrowLeft, Package, Plus, Edit, Trash2, Loader2 } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
@@ -210,30 +209,20 @@ export default function AdminProductUsage() {
   };
 
   return (
-    <div className="min-h-screen bg-background relative">
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        <img 
-          src={abstractImage} 
-          alt="" 
-          className="absolute inset-0 w-full h-full opacity-[0.30] object-cover"
-          loading="lazy"
-          fetchPriority="low"
-        />
-        <div className="absolute inset-0 bg-background/30" />
-      </div>
+    <div className="min-h-screen bg-transparent relative">
       <div className="container mx-auto px-6 pt-28 pb-12 relative z-10">
-        <div className="flex items-center gap-4 mb-6">
+        <div className="flex items-center gap-4 mb-4 md:mb-8">
           <Button
             variant="ghost"
             size="icon"
             className="rounded-full"
             onClick={() => navigate("/dashboard")}
           >
-            <ArrowLeft className="h-5 w-5" />
+            <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h1 className="text-3xl font-serif font-medium">Product Usage & Pricing</h1>
-            <p className="text-muted-foreground">Use products and set custom pricing for your distributors</p>
+            <h1 className="font-sans text-2xl md:text-4xl font-bold mb-1 md:mb-2 tracking-tight">Product Usage & Pricing</h1>
+            <p className="text-slate-600 dark:text-slate-400 font-medium text-sm md:text-base">Use products and set custom pricing for your distributors</p>
           </div>
         </div>
 
@@ -249,7 +238,7 @@ export default function AdminProductUsage() {
           ) : (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
               {availableProducts.map((product) => (
-                <Card key={product._id}>
+                <Card key={product._id} className="hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 bg-white/95 dark:bg-black/95 backdrop-blur-xl border border-white/20 shadow-xl">
                   <CardHeader>
                     <CardTitle className="text-lg">{product.name}</CardTitle>
                     <CardDescription>{product.description || "No description"}</CardDescription>
@@ -284,7 +273,7 @@ export default function AdminProductUsage() {
           ) : (
             <div className="space-y-4">
               {usedProducts.map((item) => (
-                <Card key={item.product._id}>
+                <Card key={item.product._id} className="hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 bg-white/95 dark:bg-black/95 backdrop-blur-xl border border-white/20 shadow-xl">
                   <CardHeader>
                     <CardTitle className="text-lg">{item.product.name}</CardTitle>
                     <CardDescription>Base Price: ₹{item.product.price.toFixed(2)}</CardDescription>
@@ -292,7 +281,7 @@ export default function AdminProductUsage() {
                   <CardContent>
                     <div className="space-y-3">
                       {item.distributors.map((dist) => (
-                        <div key={dist.pricingId} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div key={dist.pricingId} className="flex items-center justify-between p-3 border border-black/10 dark:border-white/10 rounded-lg bg-muted/30">
                           <div>
                             <p className="font-medium">{dist.distributorName}</p>
                             <p className="text-sm text-muted-foreground">{dist.distributorEmail}</p>

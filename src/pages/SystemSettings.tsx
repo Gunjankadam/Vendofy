@@ -4,7 +4,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { getApiUrl } from '@/lib/api';
 import Header from '@/components/Header';
-import abstractImage from '@/assets/abstract-login.jpg';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -76,17 +75,17 @@ const SystemSettings = () => {
   const [loadingPending, setLoadingPending] = useState(false);
   const [jwtDurationValue, setJwtDurationValue] = useState<number>(1);
   const [jwtDurationUnit, setJwtDurationUnit] = useState<'seconds' | 'minutes' | 'hours'>('hours');
-  
+
   // Separate state for field requirements to force toggle updates
   const [fieldRequirements, setFieldRequirements] = useState<{
     admin?: any;
     distributor?: any;
     customer?: any;
   }>({});
-  
+
   // Version counter to force Switch remount when settings change
   const [fieldReqsVersion, setFieldReqsVersion] = useState(0);
-  
+
   // Ref to track previous settings for comparison
   const prevSettingsRef = useRef<any>(null);
   // Ref to track previous pending change status to avoid showing duplicate notifications
@@ -135,7 +134,7 @@ const SystemSettings = () => {
           if (data) {
             const currentPendingId = pendingChange?._id || pendingChange?.id;
             const newPendingId = data._id || data.id;
-            
+
             // If status changed from pending to approved/rejected
             if (currentPendingId === newPendingId && pendingChange?.status === 'pending' && data.status !== 'pending') {
               if (data.status === 'approved') {
@@ -212,10 +211,10 @@ const SystemSettings = () => {
               },
             },
           };
-          
+
           const currentFieldReqs = JSON.stringify(structuredData.fieldRequirements);
           const prevFieldReqs = JSON.stringify(prevSettingsRef.current?.fieldRequirements);
-          
+
           // Check if field requirements changed
           if (currentFieldReqs !== prevFieldReqs) {
             // Update settings to reflect changes - use deep copy to force re-render
@@ -263,10 +262,10 @@ const SystemSettings = () => {
           const newRequests = data || [];
           const currentRequestIds = new Set(pendingRequests.map((r: any) => r._id || r.id));
           const newRequestIds = new Set(newRequests.map((r: any) => r._id || r.id));
-          
+
           // Check if there are new requests or count changed
-          if (newRequests.length !== pendingRequests.length || 
-              Array.from(newRequestIds).some((id: any) => !currentRequestIds.has(id))) {
+          if (newRequests.length !== pendingRequests.length ||
+            Array.from(newRequestIds).some((id: any) => !currentRequestIds.has(id))) {
             setPendingRequests(newRequests);
           }
         }
@@ -283,11 +282,11 @@ const SystemSettings = () => {
     try {
       const { cachedFetch } = await import('@/lib/cached-fetch');
       const data = await cachedFetch('/api/system-settings', user.token);
-      
+
       // Preserve existing admin settings if they exist, otherwise use defaults
       const existingAdmin = settings.fieldRequirements?.admin || {};
       const newAdmin = data.fieldRequirements?.admin || {};
-      
+
       // Create a properly structured settings object with all field requirements
       const newSettings = {
         ...data,
@@ -315,21 +314,21 @@ const SystemSettings = () => {
           },
         },
       };
-      
+
       // Update settings - use a completely new object
       setSettings({ ...newSettings });
-      
+
       // Explicitly update field requirements state with completely new objects
       setFieldRequirements({
         admin: { ...newSettings.fieldRequirements.admin },
         distributor: { ...newSettings.fieldRequirements.distributor },
         customer: { ...newSettings.fieldRequirements.customer },
       });
-      
+
       // Force Switch remount by incrementing version
       setFieldReqsVersion(prev => prev + 1);
       prevSettingsRef.current = newSettings;
-      
+
       // Convert JWT duration from seconds to display unit
       if (data.jwtSessionDuration) {
         const seconds = data.jwtSessionDuration;
@@ -366,7 +365,7 @@ const SystemSettings = () => {
         const data = await res.json();
         const currentStatus = data?.status || null;
         const previousStatus = prevPendingStatusRef.current;
-        
+
         // Only set as pending if status is actually pending
         if (data && data.status === 'pending') {
           setPendingChange(data);
@@ -419,7 +418,7 @@ const SystemSettings = () => {
     const fieldReqs = request.fieldRequirements || {};
     const distributorReqs = fieldReqs.distributor || {};
     const customerReqs = fieldReqs.customer || {};
-    
+
     // Apply the requested changes to current settings
     const updatedSettings = {
       ...settings,
@@ -435,7 +434,7 @@ const SystemSettings = () => {
         },
       },
     };
-    
+
     setSettings(updatedSettings);
     setFieldRequirements({
       ...fieldRequirements,
@@ -443,7 +442,7 @@ const SystemSettings = () => {
       customer: { ...updatedSettings.fieldRequirements.customer },
     });
     setFieldReqsVersion(prev => prev + 1);
-    
+
     toast({
       title: 'Changes applied',
       description: 'The requested changes have been applied to the settings. Review and save when ready.',
@@ -493,7 +492,7 @@ const SystemSettings = () => {
       // Reload settings and pending requests to ensure everything is in sync
       await loadSettings();
       await loadPendingRequests();
-      
+
     } catch (error: any) {
       console.error('Approve request error:', error);
       toast({
@@ -550,7 +549,7 @@ const SystemSettings = () => {
       } else if (jwtDurationUnit === 'hours') {
         jwtDurationInSeconds = jwtDurationValue * 3600;
       }
-      
+
       const res = await fetch(getApiUrl('/api/system-settings'), {
         method: 'PUT',
         headers: {
@@ -563,10 +562,10 @@ const SystemSettings = () => {
         }),
       });
       if (!res.ok) throw new Error('Failed to save settings');
-      
+
       // Reload settings to ensure consistency
       await loadSettings();
-      
+
       toast({
         title: 'Settings saved',
         description: 'Your changes have been saved successfully.',
@@ -641,46 +640,31 @@ const SystemSettings = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background relative">
-      {/* Abstract background image with dark overlay */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        <img 
-          src={abstractImage} 
-          alt="" 
-          className="absolute inset-0 w-full h-full opacity-[0.30] object-cover"
-          loading="lazy"
-          fetchPriority="low"
-        />
-        {/* Dark overlay for better contrast */}
-        <div className="absolute inset-0 bg-background/30" />
-      </div>
-      
+    <div className="min-h-screen bg-transparent relative">
       <Header />
-      <main className="container mx-auto px-6 pt-28 pb-12 max-w-4xl relative z-10">
-        <div className="flex items-center gap-4 mb-8">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => navigate('/dashboard')}
-              className="rounded-full"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          <div>
-            <h1 className="font-serif text-3xl font-bold mb-1 text-foreground">System Settings</h1>
-            <p className="text-base font-medium text-foreground/90">
-              {user?.isSuperAdmin ? 'Configure global system preferences' : ''}
-            </p>
-          </div>
+      <main className="container mx-auto px-4 md:px-6 pt-24 md:pt-28 pb-12 max-w-4xl relative z-10">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => navigate('/dashboard')}
+          className="mb-6 rounded-full"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <div className="mb-6 md:mb-8">
+          <h1 className="font-sans text-2xl md:text-4xl font-bold mb-1 md:mb-2 tracking-tight">System Settings</h1>
+          <p className="text-slate-600 dark:text-slate-400 font-medium text-sm md:text-base">
+            {user?.isSuperAdmin ? 'Configure global system preferences' : 'Configure role-based field requirements'}
+          </p>
         </div>
 
         <div className="space-y-6">
           {/* Global Configuration - Super Admin Only */}
           {user?.isSuperAdmin && (
-            <Card className="bg-gradient-to-br from-gray-200 to-gray-400 dark:from-gray-700 dark:to-gray-900 backdrop-blur-md border border-black/30 dark:border-black/50 shadow-sm">
+            <Card className="hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 bg-white/95 dark:bg-black/95 backdrop-blur-xl border border-white/20 shadow-xl">
               <CardHeader>
-                <CardTitle className="text-base font-semibold text-foreground">Global Configuration</CardTitle>
-                <CardDescription>Email settings</CardDescription>
+                <CardTitle className="text-lg font-bold">Global Configuration</CardTitle>
+                <CardDescription className="text-slate-600 dark:text-slate-400 font-medium">Email settings</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
@@ -712,168 +696,168 @@ const SystemSettings = () => {
 
           {/* Authentication & Security - Super Admin Only */}
           {user?.isSuperAdmin && (
-            <Card>
-            <CardHeader>
-              <CardTitle>Authentication & Security</CardTitle>
-              <CardDescription>
-                {user?.isSuperAdmin ? 'JWT session and password policy settings' : 'JWT session and password policy settings (read-only)'}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="jwtSessionDuration">JWT Session Duration</Label>
-                <div className="flex gap-2">
+            <Card className="hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 bg-white/95 dark:bg-black/95 backdrop-blur-xl border border-white/20 shadow-xl">
+              <CardHeader>
+                <CardTitle className="text-lg font-bold">Authentication & Security</CardTitle>
+                <CardDescription className="text-slate-600 dark:text-slate-400 font-medium">
+                  {user?.isSuperAdmin ? 'JWT session and password policy settings' : 'JWT session and password policy settings (read-only)'}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="jwtSessionDuration">JWT Session Duration</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="jwtSessionDuration"
+                      type="number"
+                      min="1"
+                      value={jwtDurationValue}
+                      onChange={(e) => setJwtDurationValue(Number(e.target.value))}
+                      className="flex-1"
+                      disabled={!user?.isSuperAdmin}
+                    />
+                    <Select
+                      value={jwtDurationUnit}
+                      onValueChange={(value: 'seconds' | 'minutes' | 'hours') => setJwtDurationUnit(value)}
+                      disabled={!user?.isSuperAdmin}
+                    >
+                      <SelectTrigger className="w-32">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="seconds">Seconds</SelectItem>
+                        <SelectItem value="minutes">Minutes</SelectItem>
+                        <SelectItem value="hours">Hours</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="passwordMinLength">Password Minimum Length</Label>
                   <Input
-                    id="jwtSessionDuration"
+                    id="passwordMinLength"
                     type="number"
-                    min="1"
-                    value={jwtDurationValue}
-                    onChange={(e) => setJwtDurationValue(Number(e.target.value))}
-                    className="flex-1"
+                    min="6"
+                    max="32"
+                    value={settings.passwordMinLength || 8}
+                    onChange={(e) =>
+                      setSettings({ ...settings, passwordMinLength: Number(e.target.value) })
+                    }
                     disabled={!user?.isSuperAdmin}
                   />
-                  <Select 
-                    value={jwtDurationUnit} 
-                    onValueChange={(value: 'seconds' | 'minutes' | 'hours') => setJwtDurationUnit(value)}
-                    disabled={!user?.isSuperAdmin}
-                  >
-                    <SelectTrigger className="w-32">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="seconds">Seconds</SelectItem>
-                      <SelectItem value="minutes">Minutes</SelectItem>
-                      <SelectItem value="hours">Hours</SelectItem>
-                    </SelectContent>
-                  </Select>
                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="passwordMinLength">Password Minimum Length</Label>
-                <Input
-                  id="passwordMinLength"
-                  type="number"
-                  min="6"
-                  max="32"
-                  value={settings.passwordMinLength || 8}
-                  onChange={(e) =>
-                    setSettings({ ...settings, passwordMinLength: Number(e.target.value) })
-                  }
-                  disabled={!user?.isSuperAdmin}
-                />
-              </div>
-              <div className="space-y-3">
-                <Label>Password Requirements</Label>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="requireUppercase" className="font-normal">
-                      Require uppercase letters
-                    </Label>
-                    <Switch
-                      id="requireUppercase"
-                      checked={settings.passwordRequireUppercase || false}
-                      onCheckedChange={(checked) =>
-                        setSettings({ ...settings, passwordRequireUppercase: checked })
-                      }
-                      disabled={!user?.isSuperAdmin}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="requireLowercase" className="font-normal">
-                      Require lowercase letters
-                    </Label>
-                    <Switch
-                      id="requireLowercase"
-                      checked={settings.passwordRequireLowercase || false}
-                      onCheckedChange={(checked) =>
-                        setSettings({ ...settings, passwordRequireLowercase: checked })
-                      }
-                      disabled={!user?.isSuperAdmin}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="requireNumbers" className="font-normal">
-                      Require numbers
-                    </Label>
-                    <Switch
-                      id="requireNumbers"
-                      checked={settings.passwordRequireNumbers || false}
-                      onCheckedChange={(checked) =>
-                        setSettings({ ...settings, passwordRequireNumbers: checked })
-                      }
-                      disabled={!user?.isSuperAdmin}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="requireSpecialChars" className="font-normal">
-                      Require special characters
-                    </Label>
-                    <Switch
-                      id="requireSpecialChars"
-                      checked={settings.passwordRequireSpecialChars || false}
-                      onCheckedChange={(checked) =>
-                        setSettings({ ...settings, passwordRequireSpecialChars: checked })
-                      }
-                      disabled={!user?.isSuperAdmin}
-                    />
+                <div className="space-y-3">
+                  <Label>Password Requirements</Label>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="requireUppercase" className="font-normal">
+                        Require uppercase letters
+                      </Label>
+                      <Switch
+                        id="requireUppercase"
+                        checked={settings.passwordRequireUppercase || false}
+                        onCheckedChange={(checked) =>
+                          setSettings({ ...settings, passwordRequireUppercase: checked })
+                        }
+                        disabled={!user?.isSuperAdmin}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="requireLowercase" className="font-normal">
+                        Require lowercase letters
+                      </Label>
+                      <Switch
+                        id="requireLowercase"
+                        checked={settings.passwordRequireLowercase || false}
+                        onCheckedChange={(checked) =>
+                          setSettings({ ...settings, passwordRequireLowercase: checked })
+                        }
+                        disabled={!user?.isSuperAdmin}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="requireNumbers" className="font-normal">
+                        Require numbers
+                      </Label>
+                      <Switch
+                        id="requireNumbers"
+                        checked={settings.passwordRequireNumbers || false}
+                        onCheckedChange={(checked) =>
+                          setSettings({ ...settings, passwordRequireNumbers: checked })
+                        }
+                        disabled={!user?.isSuperAdmin}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="requireSpecialChars" className="font-normal">
+                        Require special characters
+                      </Label>
+                      <Switch
+                        id="requireSpecialChars"
+                        checked={settings.passwordRequireSpecialChars || false}
+                        onCheckedChange={(checked) =>
+                          setSettings({ ...settings, passwordRequireSpecialChars: checked })
+                        }
+                        disabled={!user?.isSuperAdmin}
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
           )}
 
           {/* App Behavior - Super Admin Only */}
           {user?.isSuperAdmin && (
-            <Card>
-            <CardHeader>
-              <CardTitle>App Behavior</CardTitle>
-              <CardDescription>
-                {user?.isSuperAdmin ? 'Feature toggles and notification preferences' : 'Feature toggles and notification preferences (read-only)'}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label htmlFor="notificationEmail">Email Notifications</Label>
-                  <p className="text-sm text-muted-foreground">Send notifications via email</p>
+            <Card className="hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 bg-white/95 dark:bg-black/95 backdrop-blur-xl border border-white/20 shadow-xl">
+              <CardHeader>
+                <CardTitle className="text-lg font-bold">App Behavior</CardTitle>
+                <CardDescription className="text-slate-600 dark:text-slate-400 font-medium">
+                  {user?.isSuperAdmin ? 'Feature toggles and notification preferences' : 'Feature toggles and notification preferences (read-only)'}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="notificationEmail">Email Notifications</Label>
+                    <p className="text-sm text-muted-foreground">Send notifications via email</p>
+                  </div>
+                  <Switch
+                    id="notificationEmail"
+                    checked={settings.notificationEmailEnabled !== false}
+                    onCheckedChange={(checked) =>
+                      setSettings({ ...settings, notificationEmailEnabled: checked })
+                    }
+                    disabled={!user?.isSuperAdmin}
+                  />
                 </div>
-                <Switch
-                  id="notificationEmail"
-                  checked={settings.notificationEmailEnabled !== false}
-                  onCheckedChange={(checked) =>
-                    setSettings({ ...settings, notificationEmailEnabled: checked })
-                  }
-                  disabled={!user?.isSuperAdmin}
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label htmlFor="notificationOnSite">On-Site Notifications</Label>
-                  <p className="text-sm text-muted-foreground">Show notifications in the app</p>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="notificationOnSite">On-Site Notifications</Label>
+                    <p className="text-sm text-muted-foreground">Show notifications in the app</p>
+                  </div>
+                  <Switch
+                    id="notificationOnSite"
+                    checked={settings.notificationOnSiteEnabled !== false}
+                    onCheckedChange={(checked) =>
+                      setSettings({ ...settings, notificationOnSiteEnabled: checked })
+                    }
+                    disabled={!user?.isSuperAdmin}
+                  />
                 </div>
-                <Switch
-                  id="notificationOnSite"
-                  checked={settings.notificationOnSiteEnabled !== false}
-                  onCheckedChange={(checked) =>
-                    setSettings({ ...settings, notificationOnSiteEnabled: checked })
-                  }
-                  disabled={!user?.isSuperAdmin}
-                />
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
           )}
 
           {/* Pending Approval Requests - Super Admin Only */}
           {user?.isSuperAdmin && (
-            <Card>
+            <Card className="hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 bg-white/95 dark:bg-black/95 backdrop-blur-xl border border-white/20 shadow-xl">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Clock className="h-5 w-5" />
+                <CardTitle className="flex items-center gap-2 text-lg font-bold">
+                  <Clock className="h-5 w-5 text-primary" />
                   Pending Approval Requests
                 </CardTitle>
-                <CardDescription>
+                <CardDescription className="text-slate-600 dark:text-slate-400 font-medium">
                   Review and approve field requirement changes submitted by admins
                 </CardDescription>
               </CardHeader>
@@ -898,25 +882,25 @@ const SystemSettings = () => {
                       return (
                         <div
                           key={request._id}
-                          className="border border-border rounded-lg p-4 space-y-4"
+                          className="p-4 border border-black/10 dark:border-white/10 rounded-lg hover:bg-muted/50 transition-colors"
                         >
                           <div className="flex items-start justify-between">
                             <div>
-                              <p className="font-medium text-sm">
-                                Requested by: {requestedBy?.name || 'Unknown'} ({requestedBy?.email || 'N/A'})
+                              <p className="font-bold text-sm">
+                                Requested by: {requestedBy?.name || 'Unknown'}
                               </p>
-                              <p className="text-xs text-muted-foreground mt-1">
-                                Submitted on: {createdAt}
+                              <p className="text-xs text-slate-600 dark:text-slate-400 font-medium mt-1">
+                                {requestedBy?.email || 'N/A'} • Submitted on: {createdAt}
                               </p>
                             </div>
                           </div>
 
                           <div className="space-y-3 pt-2 border-t border-border">
                             <p className="text-sm font-medium mb-2">Requested Changes:</p>
-                            
+
                             {Object.keys(distributorReqs).length > 0 && (
-                              <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-md">
-                                <p className="text-xs font-semibold text-blue-900 dark:text-blue-200 mb-2">
+                              <div className="bg-primary/5 dark:bg-primary/10 p-3 rounded-lg border border-primary/10">
+                                <p className="text-xs font-bold text-primary mb-2 uppercase tracking-wider">
                                   Distributor Role:
                                 </p>
                                 <div className="space-y-1.5">
@@ -926,7 +910,7 @@ const SystemSettings = () => {
                                       ? 'Registration'
                                       : key.replace(/([A-Z])/g, ' $1').trim();
                                     const hasChanged = currentValue !== requestedValue;
-                                    
+
                                     return (
                                       <div key={key} className="flex items-center justify-between text-xs">
                                         <span className="text-muted-foreground capitalize">{fieldName}:</span>
@@ -936,10 +920,10 @@ const SystemSettings = () => {
                                               {currentValue ? 'Required' : 'Optional'}
                                             </span>
                                           )}
-                                          <span className={`font-medium ${requestedValue ? 'text-green-600' : 'text-gray-400'}`}>
+                                          <span className={`font-bold ${requestedValue ? 'text-primary' : 'text-slate-400'}`}>
                                             {requestedValue ? 'Required' : 'Optional'}
                                           </span>
-                                          {hasChanged && <span className="text-blue-600">→</span>}
+                                          {hasChanged && <span className="text-primary/60">→</span>}
                                         </div>
                                       </div>
                                     );
@@ -949,8 +933,8 @@ const SystemSettings = () => {
                             )}
 
                             {Object.keys(customerReqs).length > 0 && (
-                              <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-md">
-                                <p className="text-xs font-semibold text-blue-900 dark:text-blue-200 mb-2">
+                              <div className="bg-primary/5 dark:bg-primary/10 p-3 rounded-lg border border-primary/10">
+                                <p className="text-xs font-bold text-primary mb-2 uppercase tracking-wider">
                                   Customer Role:
                                 </p>
                                 <div className="space-y-1.5">
@@ -960,7 +944,7 @@ const SystemSettings = () => {
                                       ? 'Registration'
                                       : key.replace(/([A-Z])/g, ' $1').trim();
                                     const hasChanged = currentValue !== requestedValue;
-                                    
+
                                     return (
                                       <div key={key} className="flex items-center justify-between text-xs">
                                         <span className="text-muted-foreground capitalize">{fieldName}:</span>
@@ -970,10 +954,10 @@ const SystemSettings = () => {
                                               {currentValue ? 'Required' : 'Optional'}
                                             </span>
                                           )}
-                                          <span className={`font-medium ${requestedValue ? 'text-green-600' : 'text-gray-400'}`}>
+                                          <span className={`font-bold ${requestedValue ? 'text-primary' : 'text-slate-400'}`}>
                                             {requestedValue ? 'Required' : 'Optional'}
                                           </span>
-                                          {hasChanged && <span className="text-blue-600">→</span>}
+                                          {hasChanged && <span className="text-primary/60">→</span>}
                                         </div>
                                       </div>
                                     );
@@ -981,7 +965,7 @@ const SystemSettings = () => {
                                 </div>
                               </div>
                             )}
-                            
+
                             <div className="flex items-center gap-2 pt-2">
                               <Button
                                 size="sm"
@@ -1021,17 +1005,18 @@ const SystemSettings = () => {
 
           {/* Field Requirements - Admin can edit distributor and customer, Super Admin can edit all */}
           {(user?.isSuperAdmin || user?.role === 'admin') && (
-            <Card className="bg-gradient-to-br from-gray-200 to-gray-400 dark:from-gray-700 dark:to-gray-900 backdrop-blur-md border border-black/30 dark:border-black/50 shadow-sm">
+            <Card className="hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 bg-white/95 dark:bg-black/95 backdrop-blur-xl border border-white/20 shadow-xl">
               <CardHeader>
-                <CardTitle className="text-base font-semibold text-foreground">Field Requirements</CardTitle>
-                <CardDescription>
-                  {user?.isSuperAdmin 
+                <CardTitle className="text-lg font-bold">Field Requirements</CardTitle>
+                <CardDescription className="text-slate-600 dark:text-slate-400 font-medium">
+                  {user?.isSuperAdmin
                     ? 'Configure which fields are mandatory for each role during user creation'
-                    : 'Configure which fields are mandatory for distributor and customer roles (requires super admin approval)'}
+                    : 'Configure mandatory fields for distributor and customer roles (requires super admin approval)'}
                 </CardDescription>
                 {pendingChange && !user?.isSuperAdmin && (
-                  <div className="mt-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
-                    <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                  <div className="mt-4 p-4 bg-primary/10 border border-primary/20 rounded-xl flex items-center gap-3">
+                    <Clock className="h-5 w-5 text-primary shrink-0" />
+                    <p className="text-sm font-medium text-primary">
                       You have a pending change request awaiting super admin approval.
                     </p>
                   </div>
@@ -1039,9 +1024,9 @@ const SystemSettings = () => {
               </CardHeader>
               <CardContent className="space-y-6">
                 {(user?.isSuperAdmin ? ['admin', 'distributor', 'customer'] : ['distributor', 'customer']).map((role) => (
-                  <div key={role} className="space-y-3 border-b border-border pb-4 last:border-0">
-                    <h3 className="font-medium capitalize">{role} Role</h3>
-                    <div className="grid grid-cols-2 gap-3">
+                  <div key={role} className="space-y-4 border-b border-white/10 pb-6 last:border-0 last:pb-0">
+                    <h3 className="font-bold capitalize text-lg text-primary">{role} Role</h3>
+                    <div className="grid md:grid-cols-2 gap-4">
                       {[
                         { key: 'mobileNo', label: 'Mobile Number' },
                         { key: 'businessName', label: 'Business Name' },
@@ -1055,7 +1040,7 @@ const SystemSettings = () => {
                         const checkedValue = isRegistration
                           ? Boolean(roleReqs.registrationNo || roleReqs.registrationCopy)
                           : Boolean(roleReqs[field.key as keyof typeof roleReqs]);
-                        
+
                         return (
                           <div key={field.key} className="flex items-center justify-between">
                             <Label htmlFor={`${role}-${field.key}`} className="font-normal text-sm">
@@ -1070,21 +1055,21 @@ const SystemSettings = () => {
                                 const updatedRoleReqs = {
                                   ...(fieldRequirements[role as 'admin' | 'distributor' | 'customer'] || settings.fieldRequirements?.[role] || {}),
                                 };
-                                
+
                                 if (isRegistration) {
                                   updatedRoleReqs.registrationNo = checked;
                                   updatedRoleReqs.registrationCopy = checked;
                                 } else {
                                   updatedRoleReqs[field.key as keyof typeof updatedRoleReqs] = checked;
                                 }
-                                
+
                                 // Update both states
                                 const updatedFieldReqs = {
                                   ...fieldRequirements,
                                   [role]: updatedRoleReqs,
                                 };
                                 setFieldRequirements(updatedFieldReqs);
-                                
+
                                 setSettings({
                                   ...settings,
                                   fieldRequirements: {
@@ -1092,7 +1077,7 @@ const SystemSettings = () => {
                                     [role]: updatedRoleReqs,
                                   },
                                 });
-                                
+
                                 // Increment version to ensure UI updates
                                 setFieldReqsVersion(prev => prev + 1);
                               }}

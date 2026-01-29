@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getApiUrl } from '@/lib/api';
 import Header from '@/components/Header';
-import abstractImage from '@/assets/abstract-login.jpg';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -199,17 +198,7 @@ const DistributorPricing = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background relative">
-        <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-          <img
-            src={abstractImage}
-            alt=""
-            className="absolute inset-0 w-full h-full opacity-[0.30] object-cover"
-            loading="lazy"
-            fetchPriority="low"
-          />
-          <div className="absolute inset-0 bg-white/95 dark:bg-black/95 backdrop-blur-3xl" />
-        </div>
+      <div className="min-h-screen bg-transparent relative">
         <Header />
         <main className="container mx-auto px-4 md:px-6 pt-24 md:pt-28 pb-12 relative z-10">
           <div className="flex items-center justify-center min-h-[60vh]">
@@ -224,17 +213,7 @@ const DistributorPricing = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background relative">
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        <img
-          src={abstractImage}
-          alt=""
-          className="absolute inset-0 w-full h-full opacity-[0.30] object-cover"
-          loading="lazy"
-          fetchPriority="low"
-        />
-        <div className="absolute inset-0 bg-white/95 dark:bg-black/95 backdrop-blur-3xl" />
-      </div>
+    <div className="min-h-screen bg-transparent relative">
       <Header />
       <main className="container mx-auto px-4 md:px-6 pt-24 md:pt-28 pb-12 relative z-10">
         <Button

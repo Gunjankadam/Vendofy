@@ -2,7 +2,6 @@ import { useEffect, useState, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getApiUrl } from '@/lib/api';
 import Header from '@/components/Header';
-import abstractImage from '@/assets/abstract-login.jpg';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -479,20 +478,7 @@ const ProductManagement = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background relative">
-      {/* Abstract background image with dark overlay */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        <img
-          src={abstractImage}
-          alt=""
-          className="absolute inset-0 w-full h-full opacity-[0.30] object-cover"
-          loading="lazy"
-          fetchPriority="low"
-        />
-        {/* Dark overlay for better contrast */}
-        <div className="absolute inset-0 bg-background/30" />
-      </div>
-
+    <div className="min-h-screen bg-transparent relative">
       <Header />
 
       <main className="container mx-auto px-6 pt-28 pb-12 relative z-10">

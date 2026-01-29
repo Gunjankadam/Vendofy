@@ -2,7 +2,6 @@ import { useEffect, useState, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import Header from '@/components/Header';
 import { getApiUrl } from '@/lib/api';
-import abstractImage from '@/assets/abstract-login.jpg';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -49,13 +48,13 @@ const AdminOrderNotifications = () => {
       const { cachedFetch } = await import('@/lib/cached-fetch');
       // Skip cache for polling requests to get fresh data
       const data = await cachedFetch<OrderNotification[]>('/api/admin/order-notifications', user.token, { skipCache: true });
-      
+
       // Only update if notifications actually changed
       const notificationsChanged = JSON.stringify(prevNotificationsRef.current) !== JSON.stringify(data);
       if (notificationsChanged) {
         setNotifications(data);
         prevNotificationsRef.current = data;
-        
+
         // Show toast for new notifications
         if (data.length > prevNotificationsRef.current.length && prevNotificationsRef.current.length > 0) {
           const newCount = data.length - prevNotificationsRef.current.length;
@@ -107,18 +106,7 @@ const AdminOrderNotifications = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background relative">
-        {/* Abstract background image with dark overlay */}
-        <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-          <img 
-            src={abstractImage} 
-            alt="" 
-            className="absolute inset-0 w-full h-full opacity-[0.30] object-cover"
-            loading="lazy"
-            fetchPriority="low"
-          />
-          <div className="absolute inset-0 bg-background/30" />
-        </div>
+      <div className="min-h-screen bg-transparent relative">
         <Header />
         <main className="container mx-auto px-6 pt-28 pb-12 relative z-10">
           <div className="flex items-center justify-center min-h-[60vh]">
@@ -135,20 +123,7 @@ const AdminOrderNotifications = () => {
   const itemsSummary = getItemsSummary();
 
   return (
-    <div className="min-h-screen bg-background relative">
-      {/* Abstract background image with dark overlay */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        <img 
-          src={abstractImage} 
-          alt="" 
-          className="absolute inset-0 w-full h-full opacity-[0.30] object-cover"
-          loading="lazy"
-          fetchPriority="low"
-        />
-        {/* Dark overlay for better contrast */}
-        <div className="absolute inset-0 bg-background/30" />
-      </div>
-      
+    <div className="min-h-screen bg-transparent relative">
       <Header />
       <main className="container mx-auto px-6 pt-28 pb-12 relative z-10">
         <Button
@@ -160,19 +135,19 @@ const AdminOrderNotifications = () => {
           <ArrowLeft className="h-4 w-4" />
         </Button>
 
-        <div className="mb-6">
-          <h1 className="font-serif text-3xl font-bold mb-2 flex items-center gap-2 text-foreground">
-            <Bell className="h-8 w-8" />
+        <div className="mb-6 md:mb-8">
+          <h1 className="font-sans text-2xl md:text-4xl font-bold mb-1 md:mb-2 tracking-tight flex items-center gap-2">
+            <Bell className="h-6 w-6 md:h-8 md:w-8 text-primary shrink-0" />
             Order Notifications
           </h1>
-          <p className="text-base font-medium text-foreground/90">
+          <p className="text-slate-600 dark:text-slate-400 font-medium text-sm md:text-base">
             {notifications.length} notification(s) from distributors
           </p>
         </div>
 
         {/* Items Summary */}
         {itemsSummary.length > 0 && (
-          <Card className="mb-4 bg-gradient-to-br from-gray-200 to-gray-400 dark:from-gray-700 dark:to-gray-900 backdrop-blur-md border border-black/30 dark:border-black/50 shadow-sm">
+          <Card className="mb-4 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 bg-white/95 dark:bg-black/95 backdrop-blur-xl border border-white/20 shadow-xl">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -197,7 +172,7 @@ const AdminOrderNotifications = () => {
             notifications.map((notification) => {
               const totalUnits = notification.items.reduce((sum, item) => sum + item.quantity, 0);
               return (
-                <Card key={notification._id} className="hover:shadow-lg transition-all bg-gradient-to-br from-gray-200 to-gray-400 dark:from-gray-700 dark:to-gray-900 backdrop-blur-md border border-black/30 dark:border-black/50 shadow-sm">
+                <Card key={notification._id} className="hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 bg-white/95 dark:bg-black/95 backdrop-blur-xl border border-white/20 shadow-xl">
                   <CardContent className="pt-6">
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-base font-semibold text-foreground">Order #{notification.orderNumber}</CardTitle>

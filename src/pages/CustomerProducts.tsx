@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import Header from '@/components/Header';
-import abstractImage from '@/assets/abstract-login.jpg';
 import { getApiUrl } from '@/lib/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -117,17 +116,7 @@ const CustomerProducts = () => {
   const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
-    <div className="min-h-screen bg-background relative">
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        <img 
-          src={abstractImage} 
-          alt="" 
-          className="absolute inset-0 w-full h-full opacity-[0.30] object-cover"
-          loading="lazy"
-          fetchPriority="low"
-        />
-        <div className="absolute inset-0 bg-background/30" />
-      </div>
+    <div className="min-h-screen bg-transparent relative">
       <Header />
       <main className="container mx-auto px-6 pt-28 pb-12 relative z-10">
         <div className="flex items-center justify-between mb-6">
@@ -140,7 +129,7 @@ const CustomerProducts = () => {
             >
               <ArrowLeft className="h-5 w-5" />
             </Button>
-            <h1 className="font-serif text-3xl font-medium">Browse Products</h1>
+            <h1 className="font-sans text-2xl md:text-4xl font-bold mb-1 md:mb-2 tracking-tight">Browse Products</h1>
           </div>
           <Button
             onClick={() => navigate('/customer/checkout')}
@@ -173,7 +162,7 @@ const CustomerProducts = () => {
             {products.map((product) => {
               const cartItem = cart.find((item) => item.productId === product._id);
               return (
-                <Card key={product._id} className="hover:shadow-md transition-shadow">
+                <Card key={product._id} className="hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 bg-white/95 dark:bg-black/95 backdrop-blur-xl border border-white/20 shadow-xl overflow-hidden">
                   {product.imageUrl && (
                     <div className="aspect-video w-full overflow-hidden rounded-t-lg bg-muted">
                       <img

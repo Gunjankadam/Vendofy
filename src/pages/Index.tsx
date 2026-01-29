@@ -5,7 +5,6 @@ import { LazyHeader } from '@/components/LazyHeader';
 import { Button } from '@/components/ui/button';
 // Import icons directly - they're tree-shakeable and small
 import { Shield, Truck, ShoppingBag, ArrowRight } from 'lucide-react';
-import abstractImage from '@/assets/abstract-login.jpg';
 
 const Index = () => {
   const { isAuthenticated } = useAuth();
@@ -19,19 +18,7 @@ const Index = () => {
   }, [isAuthenticated, navigate]);
 
   return (
-    <div className="min-h-screen bg-background relative">
-      {/* Abstract background image */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        <img
-          src={abstractImage}
-          alt=""
-          className="absolute inset-0 w-full h-full opacity-[0.30] object-cover"
-          loading="lazy"
-          fetchPriority="low"
-        />
-        <div className="absolute inset-0 bg-background/30" />
-      </div>
-
+    <div className="min-h-screen bg-transparent relative">
       <LazyHeader />
 
       <main className="container mx-auto px-6 pt-32 relative z-10">

@@ -98,19 +98,12 @@
   }
 
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply bg-transparent text-foreground antialiased;
     font-family: var(--font-sans);
-    background-image:
-      radial-gradient(at 0% 0%, hsla(30, 20%, 70%, 0.4) 0px, transparent 50%),
-      radial-gradient(at 100% 0%, hsla(40, 20%, 65%, 0.4) 0px, transparent 50%);
-    background-attachment: fixed;
   }
 
   .dark body {
-    background-image:
-      radial-gradient(at 0% 0%, hsla(30, 20%, 12%, 0.6) 0px, transparent 50%),
-      radial-gradient(at 100% 0%, hsla(30, 20%, 12%, 0.6) 0px, transparent 50%);
-    background-attachment: fixed;
+    @apply bg-transparent;
   }
 
   h1,

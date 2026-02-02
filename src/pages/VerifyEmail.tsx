@@ -15,7 +15,7 @@ const VerifyEmail = () => {
 
   useEffect(() => {
     const token = searchParams.get('token');
-    
+
     if (!token) {
       setStatus('error');
       setMessage('Verification token is missing.');
@@ -35,7 +35,7 @@ const VerifyEmail = () => {
 
         setStatus('success');
         setMessage(data.message || 'Email verified successfully! Your temporary password has been sent to your email.');
-        
+
         toast({
           title: 'Email verified',
           description: 'Your account is now active. Please check your email for your temporary password.',
@@ -52,7 +52,7 @@ const VerifyEmail = () => {
   }, [searchParams, toast]);
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-6">
+    <div className="min-h-screen bg-transparent flex items-center justify-center p-6">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           {status === 'loading' && (
@@ -97,8 +97,8 @@ const VerifyEmail = () => {
                   Check your email for your temporary password. Please change it as soon as you log in using the "Forgot Password" option if needed.
                 </p>
               </div>
-              <Button 
-                className="w-full" 
+              <Button
+                className="w-full"
                 onClick={() => navigate('/login')}
               >
                 Go to Login
@@ -106,8 +106,8 @@ const VerifyEmail = () => {
             </div>
           )}
           {status === 'error' && (
-            <Button 
-              className="w-full" 
+            <Button
+              className="w-full"
               variant="outline"
               onClick={() => navigate('/login')}
             >
